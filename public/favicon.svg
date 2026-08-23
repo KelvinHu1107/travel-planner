@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="ga" x1="5" y1="25" x2="36" y2="15" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#9333EA" stop-opacity="0.52"/>
+      <stop offset="100%" stop-color="#C084FC" stop-opacity="0.65"/>
+    </linearGradient>
+    <linearGradient id="gb" x1="17" y1="33" x2="38" y2="23" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#A855F7"/>
+    </linearGradient>
+  </defs>
+  <!-- Left chevron: higher position, -20° rotated, lighter -->
+  <polyline points="5,15 22,20 12,34"
+    stroke="url(#ga)" stroke-width="7.5"
+    stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Right chevron: lower position, -20° rotated, darker -->
+  <polyline points="19,23 36,28 26,42"
+    stroke="url(#gb)" stroke-width="7.5"
+    stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
