@@ -1,0 +1,412 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Cubic 11';
+  src: url('/fonts/Cubic_11.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'jf-openhuninn';
+  src: url('/fonts/jf-openhuninn.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+  色彩學依據：
+  - 主色 (沙色 hue ~35°) 搭配類比色 amber / warm-brown → 溫暖和諧感
+  - 類別強調色使用分裂互補 (teal / purple / orange-red) 對淺底高對比
+  - 文字深棕 #2B1709 對奶油底，WCAG AA 對比 ≥ 4.5:1
+  Sources: supercharge.design, figma.com/colors/sand, ixdf.org
+*/
+
+:root {
+  /* ── 背景層次（沙色漸層） ── */
+  --bg-base:    #FAF6ED;
+  --bg-card:    rgba(255, 250, 240, 0.88);
+  --bg-surface: rgba(195, 158, 99, 0.10);
+  --bg-elevated:rgba(175, 138, 79, 0.18);
+  --border:     rgba(165, 125, 65, 0.22);
+  --border-glow:rgba(180, 95, 20, 0.38);
+
+  /* ── 文字（暖棕色系） ── */
+  --text-primary:   #2B1709;
+  --text-secondary: #6A3E1F;
+  --text-muted:     #9E7040;
+
+  /* ── 主題色（琥珀沙金）── */
+  --accent:       #B45309;
+  --accent-bright:#D97706;
+  --accent-glow:  rgba(180, 83, 9, 0.18);
+  --gold:         #D97706;
+  --gold-dark:    #92400E;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'jf-openhuninn', 'M PLUS Rounded 1c', 'PingFang TC', 'Noto Sans TC',
+    'Microsoft JhengHei', sans-serif;
+  font-weight: 800;
+  background-color: var(--bg-base);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% 8%,  rgba(215, 170, 90, 0.20) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 40% at 80% 85%,  rgba(190, 140, 70, 0.14) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 30% at 50% 45%,  rgba(240, 210, 140, 0.10) 0%, transparent 50%);
+  color: var(--text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root { min-height: 100vh; }
+
+/* ── 遊戲風 3D 按鈕 ─────────────────────────── */
+.btn-game {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 32px;
+  border-radius: 20px;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-game:active {
+  transform: translateY(5px);
+  filter: brightness(0.88);
+}
+
+/* 琥珀主色調 CTA */
+.btn-primary {
+  background: linear-gradient(160deg, #F5B030 0%, #D97706 38%, #B45309 68%, #92400E 100%);
+  box-shadow:
+    0 8px 0 #78350F,
+    0 9px 0 rgba(0,0,0,0.18),
+    0 12px 32px rgba(180, 83, 9, 0.40),
+    inset 0 2px 0 rgba(255,255,255,0.30),
+    inset 0 -1px 0 rgba(0,0,0,0.18);
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.25);
+}
+.btn-primary:active {
+  box-shadow:
+    0 2px 0 #78350F,
+    0 3px 0 rgba(0,0,0,0.18),
+    0 5px 14px rgba(180, 83, 9, 0.30),
+    inset 0 2px 0 rgba(255,255,255,0.30),
+    inset 0 -1px 0 rgba(0,0,0,0.18);
+}
+
+/* 金色按鈕 */
+.btn-gold {
+  background: linear-gradient(160deg, #FDE68A 0%, #FCD34D 25%, #F59E0B 60%, #D97706 100%);
+  box-shadow:
+    0 8px 0 #92400E,
+    0 9px 0 rgba(0,0,0,0.15),
+    0 12px 28px rgba(245, 158, 11, 0.40),
+    inset 0 2px 0 rgba(255,255,255,0.55),
+    inset 0 -1px 0 rgba(0,0,0,0.12);
+  color: #1C1208;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.35);
+}
+.btn-gold:active {
+  box-shadow:
+    0 2px 0 #92400E,
+    0 3px 0 rgba(0,0,0,0.15),
+    0 5px 12px rgba(245, 158, 11, 0.28),
+    inset 0 2px 0 rgba(255,255,255,0.55),
+    inset 0 -1px 0 rgba(0,0,0,0.12);
+}
+
+/* 暖色幽靈按鈕 */
+.btn-ghost {
+  background: linear-gradient(160deg, rgba(255,253,245,0.98) 0%, rgba(255,248,232,0.95) 100%);
+  box-shadow:
+    0 6px 0 rgba(140, 100, 40, 0.22),
+    0 7px 0 rgba(0,0,0,0.08),
+    0 10px 20px rgba(120, 80, 20, 0.10),
+    inset 0 2px 0 rgba(255,255,255,0.95),
+    inset 0 -1px 0 rgba(140,100,40,0.12);
+  border: 1.5px solid rgba(175, 135, 70, 0.32);
+  color: var(--text-secondary);
+}
+.btn-ghost:active {
+  box-shadow:
+    0 1px 0 rgba(140, 100, 40, 0.22),
+    0 2px 6px rgba(120, 80, 20, 0.08),
+    inset 0 2px 0 rgba(255,255,255,0.95),
+    inset 0 -1px 0 rgba(140,100,40,0.12);
+}
+
+/* ── 暖色玻璃卡片 ───────────────────────────── */
+.glass-card {
+  background: linear-gradient(160deg, rgba(255,254,247,0.88) 0%, rgba(255,250,235,0.80) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(180, 140, 80, 0.24);
+  border-radius: 28px;
+  box-shadow:
+    0 2px 0 rgba(0,0,0,0.06),
+    0 6px 24px rgba(120, 80, 20, 0.09),
+    inset 0 2px 0 rgba(255,255,255,0.90),
+    inset 0 -1px 0 rgba(160,120,60,0.10);
+}
+
+.glass-card-glow {
+  background: linear-gradient(160deg, rgba(255,254,248,0.99) 0%, rgba(255,251,240,0.97) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1.5px solid rgba(180, 130, 60, 0.30);
+  box-shadow:
+    0 2px 0 rgba(0,0,0,0.07),
+    0 0 40px rgba(180, 110, 20, 0.08),
+    0 14px 48px rgba(120, 70, 10, 0.12),
+    0 28px 64px rgba(80, 40, 5, 0.08),
+    inset 0 2px 0 rgba(255,255,255,0.95),
+    inset 0 -1px 0 rgba(160,120,60,0.12);
+  border-radius: 28px;
+}
+
+/* ── 輸入框 ─────────────────────────────────── */
+.game-input {
+  width: 100%;
+  padding: 15px 18px;
+  border-radius: 16px;
+  background: rgba(255, 250, 238, 0.95);
+  border: 1.5px solid rgba(175, 135, 70, 0.28);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  color-scheme: light;
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,0.06),
+    inset 0 1px 2px rgba(140,100,40,0.08),
+    0 1px 0 rgba(255,255,255,0.80);
+}
+.game-input:focus {
+  border-color: rgba(180, 83, 9, 0.55);
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,0.06),
+    inset 0 1px 2px rgba(140,100,40,0.08),
+    0 1px 0 rgba(255,255,255,0.80),
+    0 0 0 4px rgba(180, 83, 9, 0.10);
+}
+.game-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* ── 非 btn-game 按鈕通用按壓感 ─────────────── */
+button:not(.btn-game) {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.07s ease, opacity 0.07s ease, filter 0.07s ease;
+}
+button:not(.btn-game):not([disabled]):active {
+  transform: scale(0.95) translateY(1px) !important;
+  filter: brightness(0.88) !important;
+  opacity: 0.9;
+}
+
+/* ── 拖曳卡片拿起動畫 ───────────────────────── */
+@keyframes card-pickup {
+  0%   { transform: rotate(0deg)   scale(1); }
+  60%  { transform: rotate(2.5deg) scale(1.09); }
+  100% { transform: rotate(2deg)   scale(1.07); }
+}
+.card-drag-overlay {
+  animation: card-pickup 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* ── 拖曳卡片放下彈跳動畫 ──────────────────── */
+@keyframes card-drop-bounce {
+  0%   { transform: scale(1.07) rotate(2deg); }
+  22%  { transform: scale(0.97) rotate(-1.8deg); }
+  44%  { transform: scale(1.02) rotate(1.0deg); }
+  62%  { transform: scale(0.99) rotate(-0.5deg); }
+  78%  { transform: scale(1.00) rotate(0.2deg); }
+  100% { transform: scale(1)    rotate(0deg); }
+}
+.card-drop-bounce {
+  animation: card-drop-bounce 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) forwards !important;
+}
+
+/* ── 裝飾光球 ───────────────────────────────── */
+.glow-dot {
+  border-radius: 50%;
+  filter: blur(50px);
+  position: absolute;
+  pointer-events: none;
+}
+
+/* ── 碰撞拒絕抖動動畫 ───────────────────────── */
+@keyframes card-collision-shake {
+  0%   { transform: translateX(0); }
+  15%  { transform: translateX(-8px); }
+  30%  { transform: translateX(8px); }
+  45%  { transform: translateX(-6px); }
+  60%  { transform: translateX(6px); }
+  75%  { transform: translateX(-3px); }
+  90%  { transform: translateX(3px); }
+  100% { transform: translateX(0); }
+}
+.card-collision-shake {
+  animation: card-collision-shake 0.52s cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
+}
+
+/* ── 清單打勾抖動動畫 ───────────────────────── */
+@keyframes checklist-shake {
+  0%   { transform: scale(1)    rotate(0deg); }
+  15%  { transform: scale(1.40) rotate(-14deg); }
+  30%  { transform: scale(1.22) rotate(11deg); }
+  48%  { transform: scale(1.30) rotate(-7deg); }
+  64%  { transform: scale(1.14) rotate(5deg); }
+  80%  { transform: scale(1.05) rotate(-2deg); }
+  100% { transform: scale(1)    rotate(0deg); }
+}
+.checklist-shake {
+  animation: checklist-shake 0.48s cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
+}
+
+/* ── Scrollbar ──────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(175, 130, 65, 0.30);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(175, 130, 65, 0.55); }
+
+/* ── iOS Safe Area ──────────────────────────── */
+:root {
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
+}
+
+/* ── Mobile Base ────────────────────────────── */
+@media (max-width: 767px) {
+  /* Prevent text zoom on input focus (iOS) */
+  input, select, textarea { font-size: 16px !important; }
+
+  /* TopBar link text hidden on small screens */
+  :root { --link-text-display: none; }
+
+  /* Body safe area bottom padding for FAB */
+  body { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+  /* Game buttons scale down on mobile */
+  .btn-game {
+    padding: 13px 22px;
+    font-size: 14px;
+    border-radius: 16px;
+  }
+
+  /* Home page topbar: tighten spacing */
+  .home-topbar-name { display: none; }
+
+  /* Glass card border radius reduced on mobile */
+  .glass-card, .glass-card-glow { border-radius: 20px; }
+}
+
+/* ── Mobile Portrait ────────────────────────── */
+@media (max-width: 767px) and (orientation: portrait) {
+  /* Cards grid: 1 column on small portrait */
+  .trips-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── Mobile Landscape ───────────────────────── */
+@media (max-width: 900px) and (orientation: landscape) {
+  /* Reduce topbar height in landscape to save vertical space */
+  .topbar-landscape { height: 52px !important; }
+
+  /* Reduce padding on landscape content */
+  .landscape-content { padding-top: 16px !important; padding-bottom: 60px !important; }
+}
+
+/* ── Tablet ─────────────────────────────────── */
+@media (min-width: 768px) and (max-width: 1099px) {
+  .trips-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important; }
+}
+
+/* ── Touch Target Enforcement ───────────────── */
+@media (pointer: coarse) {
+  /* All interactive buttons must be at least 44×44px touch target */
+  button:not(.btn-game) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Except inline icon-only small buttons — use padding to enlarge hit area */
+  button[style*="width: 28"], button[style*="width: 30"] {
+    padding: 8px !important;
+  }
+
+  /* Checklist items — larger tap area */
+  .checklist-shake {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Scrollbars hidden on touch devices */
+  ::-webkit-scrollbar { display: none; }
+  * { scrollbar-width: none; }
+}
+
+/* ── Modal Mobile Fullscreen ────────────────── */
+@media (max-width: 600px) {
+  /* Modals take full width, pinned to bottom on mobile */
+  .modal-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .modal-sheet {
+    border-radius: 24px 24px 0 0 !important;
+    max-height: 92vh !important;
+    overflow-y: auto !important;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* ── Sticky TopBar Safe Area ────────────────── */
+.topbar-sticky {
+  padding-top: max(0px, env(safe-area-inset-top, 0px));
+}
+
+/* ── FAB Safe Area Bottom ───────────────────── */
+.fab-safe {
+  bottom: max(24px, calc(24px + env(safe-area-inset-bottom, 0px))) !important;
+}
+
+/* ── Horizontal scroll hint on board ───────── */
+@media (max-width: 767px) {
+  .board-scroll-hint::after {
+    content: '';
+    display: block;
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 32px;
+    background: linear-gradient(to right, transparent, rgba(250,246,237,0.85));
+    pointer-events: none;
+  }
+}
