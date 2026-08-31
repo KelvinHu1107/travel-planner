@@ -118,7 +118,7 @@ function CategoryStep({ onSelect }) {
             }}
           >
             {cfg.IconComp
-              ? <cfg.IconComp size={30} weight="regular" color="var(--text-primary)" />
+              ? <cfg.IconComp size={30} weight="regular" color={cfg.color} />
               : <span style={{ fontSize: 30 }}>{cfg.icon}</span>}
             <span style={{ fontSize: 14, fontWeight: 900, color: cfg.color }}>
               {QUICK_LABEL_KEYS.has(key) ? t('addCard.quick.' + key) : t('category.' + key)}
@@ -189,7 +189,7 @@ function NearbySearchSection({ lat, lng, pendingNearby, onAddNearby, onClearNear
               color: activeType === nt.id ? '#0F766E' : 'var(--text-secondary)',
               cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
             }}>
-              <nt.IconComp size={16} color="var(--text-primary)" />
+              <nt.IconComp size={16} />
               <span>{t(nt.labelKey)}</span>
             </button>
           ))}
@@ -477,7 +477,7 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, exis
           <ArrowLeft size={17} />
         </button>
         <span style={{ fontSize: 21, display: 'flex', alignItems: 'center' }}>
-          {cfg.IconComp ? <cfg.IconComp size={22} weight="regular" color="var(--text-primary)" /> : cfg.icon}
+          {cfg.IconComp ? <cfg.IconComp size={22} weight="regular" color={cfg.color} /> : cfg.icon}
         </span>
         <h2 style={{ fontSize: 19, fontWeight: 900, color: cfg.color }}>
           {t(isEdit ? 'common.edit' : 'common.add')} {t('category.' + category)}
@@ -575,7 +575,7 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, exis
                   }}
                 >
                   {m.IconComp
-                    ? <m.IconComp size={14} weight="regular" color="var(--text-primary)" />
+                    ? <m.IconComp size={14} weight="regular" />
                     : null} {t(m.labelKey)}
                 </button>
               ))}

@@ -165,7 +165,7 @@ export default function CardItem({ card, onDelete, onCardClick, droppedId, shaki
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
           <span style={{ fontSize: isCompact ? 14 : 16, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
             {cfg.IconComp
-              ? <cfg.IconComp size={isCompact ? 13 : 15} weight="regular" color="var(--text-primary)" />
+              ? <cfg.IconComp size={isCompact ? 13 : 15} weight="regular" color={cfg.color} />
               : cfg.icon}
           </span>
           <span style={{
