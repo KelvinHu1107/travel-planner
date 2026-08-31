@@ -241,11 +241,11 @@ function CreateModal({ uid, onClose, onCreated }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
               <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('create.label.start')}</label>
-              <input className="game-input" type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} disabled={loading} required style={{ width: '100%', boxSizing: 'border-box', minWidth: 0 }} />
+              <input className="game-input" type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} disabled={loading} required style={{ width: '100%', boxSizing: 'border-box', minWidth: 0, fontSize: 13, padding: '10px 12px' }} />
             </div>
             <div>
               <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('create.label.end')}</label>
-              <input className="game-input" type="date" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} disabled={loading} required style={{ width: '100%', boxSizing: 'border-box', minWidth: 0 }} />
+              <input className="game-input" type="date" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} disabled={loading} required style={{ width: '100%', boxSizing: 'border-box', minWidth: 0, fontSize: 13, padding: '10px 12px' }} />
             </div>
           </div>
           <div style={{ padding: '9px 12px', borderRadius: 11,
