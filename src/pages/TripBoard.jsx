@@ -1801,7 +1801,7 @@ function MobileOverview({ trip, cards, onCardClick, onDeleteCard, onDaySelect, s
                       <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', width: 40, flexShrink: 0 }}>
                         {card.startTime}
                       </span>
-                      <span style={{ fontSize: 17, flexShrink: 0 }}>{cfg.icon}</span>
+                      <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><cfg.IconComp size={17} weight="regular" color={cfg.color} /></span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 900, color: isPending ? '#DC2626' : cfg.color,
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -2362,7 +2362,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
           {mobileDay !== null && (
             <FloatingAddButton
               tutorialId="add-card-fab"
-              bottom={76}
+              bottom={100}
               size={56}
               iconSize={22}
               onAddCard={() => setModal({ day: mobileDay, time: '09:00' })}
