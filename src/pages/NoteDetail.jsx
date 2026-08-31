@@ -2,8 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getCard, updateCard } from '../services/firestore'
 import FormatToolbar from '../components/ui/FormatToolbar'
-import { ArrowLeft, CircleCheck } from 'lucide-react'
+import { ArrowLeft, CircleCheck, Pencil, Eye, Clock, CalendarDays, FileText } from 'lucide-react'
 import { NotePencil } from '@phosphor-icons/react'
+import { useViewMode } from '../contexts/ViewModeContext'
+import { useLanguage } from '../i18n/LanguageContext'
 
 // ── Markdown 解析器 ──────────────────────────
 function escHtml(s) {
@@ -23,7 +25,7 @@ function renderInline(text) {
 function MarkdownView({ content, onToggleCheckbox }) {
   if (!content?.trim()) return (
     <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 15, padding: '40px 0', textAlign: 'center' }}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>📝</div>
+      <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><Pencil size={40} color="var(--text-muted)" /></div>
       切換到「編輯」模式開始寫筆記
     </div>
   )
@@ -73,9 +75,15 @@ function MarkdownView({ content, onToggleCheckbox }) {
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(165,125,65,0.07)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
-              <span style={{ fontSize: 20, lineHeight: '1.6', color: item.checked ? '#0F766E' : 'rgba(165,125,65,0.5)', flexShrink: 0 }}>
-                {item.checked ? '☑' : '☐'}
-              </span>
+              <div style={{
+                width: 22, height: 22, borderRadius: 7, flexShrink: 0, marginTop: 3,
+                border: `2.5px solid ${item.checked ? '#0F766E' : 'rgba(165,125,65,0.45)'}`,
+                background: item.checked ? '#0F766E' : 'rgba(255,252,244,0.90)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', fontSize: 13, fontWeight: 900, transition: 'all 0.15s',
+              }}>
+                {item.checked ? '✓' : ''}
+              </div>
               <span style={{
                 fontSize: 16, fontWeight: 700, lineHeight: 1.7,
                 color: item.checked ? 'var(--text-muted)' : 'var(--text-secondary)',
@@ -122,6 +130,8 @@ function MarkdownView({ content, onToggleCheckbox }) {
 export default function NoteDetail() {
   const { tripId, noteId } = useParams()
   const navigate = useNavigate()
+  const { isMobileMode, toggleMode } = useViewMode()
+  const { t } = useLanguage()
   const [card, setCard]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
@@ -179,17 +189,17 @@ export default function NoteDetail() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20 }}>
-      <div style={{ fontSize: 48 }}>📝</div>
-      <p style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-secondary)' }}>載入筆記中…</p>
+      <div style={{ display: 'flex', justifyContent: 'center' }}><FileText size={48} color="var(--text-muted)" /></div>
+      <p style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-secondary)' }}>{t('common.loading')}</p>
     </div>
   )
 
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20, padding: 32 }}>
       <div style={{ fontSize: 48 }}>😢</div>
-      <p style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)' }}>無法讀取筆記</p>
+      <p style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)' }}>{t('note.error')}</p>
       <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>{error}</p>
-      <button className="btn-game btn-primary" style={{ padding: '12px 28px' }} onClick={() => navigate(`/trip/${tripId}`)}>返回行程</button>
+      <button className="btn-game btn-primary" style={{ padding: '12px 28px' }} onClick={() => navigate(`/trip/${tripId}`)}>{t('note.back')}</button>
     </div>
   )
 
@@ -214,11 +224,11 @@ export default function NoteDetail() {
               background: 'var(--bg-elevated)', border: '1.5px solid var(--border)',
               color: 'var(--text-secondary)', fontSize: 13, fontWeight: 900, cursor: 'pointer',
             }}>
-            <ArrowLeft size={16} style={{ marginRight: 5 }} /> 返回行程
+            <ArrowLeft size={16} style={{ marginRight: 5 }} /> {t('note.back')}
           </button>
           <div style={{ width: 1, height: 22, background: 'var(--border)' }} />
-          <span style={{ fontSize: 18, display: 'flex' }}><NotePencil size={20} weight="fill" color="#5B21B6" /></span>
-          <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-muted)' }}>筆記編輯</span>
+          <span style={{ fontSize: 18, display: 'flex' }}><NotePencil size={20} weight="regular" color="var(--text-primary)" /></span>
+          <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-muted)' }}>{t('note.title')}</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -236,7 +246,7 @@ export default function NoteDetail() {
                   color: viewMode === mode ? 'var(--accent)' : 'var(--text-muted)',
                   transition: 'all 0.15s',
                 }}>
-                {mode === 'edit' ? '✏️ 編輯' : '👁️ 預覽'}
+                {mode === 'edit' ? <><Pencil size={12} style={{ marginRight: 5 }} />{t('note.edit')}</> : <><Eye size={12} style={{ marginRight: 5 }} />{t('note.preview')}</>}
               </button>
             ))}
           </div>
@@ -244,13 +254,17 @@ export default function NoteDetail() {
           {/* 儲存狀態 */}
           <div style={{ fontSize: 12, fontWeight: 900, color: saving ? 'var(--text-muted)' : saved ? '#0F766E' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
             {saving ? (
-              <>⏳ 儲存中…</>
+              <>⏳ {t('note.saving')}</>
             ) : saved ? (
-              <><CircleCheck size={14} color="#0F766E" style={{ marginRight: 3 }} /> 已自動儲存</>
+              <><CircleCheck size={14} style={{ marginRight: 3 }} /> {t('note.saved')}</>
             ) : (
-              <span style={{ opacity: 0.5 }}>自動儲存</span>
+              <span style={{ opacity: 0.5 }}>{t('note.saved')}</span>
             )}
           </div>
+          <button onClick={toggleMode} style={{
+            padding: '5px 9px', borderRadius: 9, border: '1.5px solid rgba(165,125,65,0.28)',
+            background: 'var(--bg-elevated)', color: 'var(--text-muted)', fontSize: 10, fontWeight: 900, cursor: 'pointer',
+          }}>{isMobileMode ? '💻' : '📱'}</button>
         </div>
       </div>
 
@@ -262,7 +276,7 @@ export default function NoteDetail() {
             type="text"
             value={title}
             onChange={handleTitleChange}
-            placeholder="筆記標題…"
+            placeholder={t('note.placeholder')}
             style={{
               width: '100%', fontSize: 32, fontWeight: 900,
               color: 'var(--text-primary)', background: 'transparent',
@@ -276,12 +290,12 @@ export default function NoteDetail() {
           <div style={{ display: 'flex', gap: 14, marginBottom: 28, flexWrap: 'wrap' }}>
             {card?.day && (
               <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                🗓️ {card.day}
+                <CalendarDays size={13} /> {card.day}
               </span>
             )}
             {card?.startTime && (
               <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                🕐 {card.startTime}
+                <Clock size={13} /> {card.startTime}
               </span>
             )}
           </div>
@@ -315,7 +329,7 @@ export default function NoteDetail() {
           {card?.images && card.images.length > 0 && (
             <div style={{ marginTop: 40 }}>
               <p style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 14 }}>
-                附加圖片
+                {t('note.attachedImages')}
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
                 {card.images.map((url, i) => (
@@ -332,7 +346,7 @@ export default function NoteDetail() {
           {card?.notes && card.notes.length > 0 && (
             <div style={{ marginTop: 40 }}>
               <p style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 14 }}>
-                附加筆記（{card.notes.length} 則）
+                {t('note.attachedNotes')} ({card.notes.length})
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {card.notes.map((note, i) => (

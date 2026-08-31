@@ -1,8 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Map, Link } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { createTrip, joinTrip, getUserTrips, deleteTrip, leaveTrip } from '../services/firestore'
+import { useViewMode } from '../contexts/ViewModeContext'
+import { createTrip, joinTrip, getUserTrips, deleteTrip, leaveTrip, addCard, cleanupDemoTrips } from '../services/firestore'
 import { getTripDuration } from '../utils/dateUtils'
+import { useTutorial } from '../tutorial/TutorialContext'
+import { useLanguage } from '../i18n/LanguageContext'
 
 function ErrorBanner({ message }) {
   if (!message) return null
@@ -16,7 +20,8 @@ function ErrorBanner({ message }) {
 }
 
 // ── 旅遊計畫卡片 ─────────────────────────────
-function TripCard({ trip, currentUser, onClick, onDelete, onLeave }) {
+function TripCard({ trip, currentUser, onClick, onDelete, onLeave, isMobileMode = false, tutorialId }) {
+  const { t } = useLanguage()
   const [hovered, setHovered]     = useState(false)
   const [menuOpen, setMenuOpen]   = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
@@ -28,7 +33,8 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave }) {
 
   return (
     <div
-      onClick={() => { if (!menuOpen && !confirmDel && !confirmLeave) onClick() }}
+      data-tutorial-id={tutorialId}
+      onClick={() => { if (menuOpen) { setMenuOpen(false); return } if (!confirmDel && !confirmLeave) onClick() }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setMenuOpen(false) }}
       style={{
@@ -53,13 +59,13 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave }) {
         )}
         <div style={{ position: 'absolute', inset: 0,
           background: 'linear-gradient(to bottom, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.40) 100%)' }} />
-        <div style={{ position: 'absolute', top: 12, left: 14, fontSize: 28 }}>🗺️</div>
+        <div style={{ position: 'absolute', top: 12, left: 14, display: 'flex', alignItems: 'center' }}><Map size={28} color="rgba(255,255,255,0.85)" /></div>
 
         {/* 擁有者或成員標籤 */}
         <div style={{ position: 'absolute', top: 10, right: 44, fontSize: 10, fontWeight: 900,
           background: isOwner ? 'rgba(180,83,9,0.80)' : 'rgba(91,33,182,0.75)',
           color: '#fff', borderRadius: 8, padding: '2px 8px', letterSpacing: '0.5px' }}>
-          {isOwner ? '建立者' : '成員'}
+          {isOwner ? t('common.owner') : t('common.member')}
         </div>
 
         {/* 更多選單按鈕 */}
@@ -86,14 +92,14 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave }) {
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px', width: '100%',
                   border: 'none', background: 'transparent', cursor: 'pointer',
                   fontSize: 13, fontWeight: 900, color: '#DC2626', textAlign: 'left' }}>
-                🗑️ 刪除計畫
+                {t('home.card.delete')}
               </button>
             ) : (
               <button onClick={(e) => { e.stopPropagation(); setConfirmLeave(true); setMenuOpen(false) }}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px', width: '100%',
                   border: 'none', background: 'transparent', cursor: 'pointer',
                   fontSize: 13, fontWeight: 900, color: '#DC2626', textAlign: 'left' }}>
-                🚪 離開計畫
+                {t('home.card.leave')}
               </button>
             )}
           </div>
@@ -113,19 +119,19 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave }) {
         <div onClick={e => e.stopPropagation()}
           style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <p style={{ fontSize: 13, fontWeight: 800, color: '#DC2626', margin: 0 }}>
-            ⚠️ 確定要刪除「{trip.name}」？所有行程卡片將一併清除，無法復原。
+            {t('home.card.confirmDelete', { name: trip.name })}
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setConfirmDel(false)}
               style={{ flex: 1, padding: '9px', borderRadius: 10, border: '1.5px solid rgba(165,125,65,0.25)',
                 background: 'var(--bg-elevated)', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
-              取消
+              {t('common.cancel')}
             </button>
             <button onClick={(e) => { e.stopPropagation(); onDelete(trip.code) }}
               style={{ flex: 2, padding: '9px', borderRadius: 10, border: 'none',
                 background: 'linear-gradient(135deg,#EF4444,#B91C1C)', boxShadow: '0 3px 0 #7F1D1D',
                 color: '#fff', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
-              確認刪除
+              {t('common.confirm.delete')}
             </button>
           </div>
         </div>
@@ -136,19 +142,19 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave }) {
         <div onClick={e => e.stopPropagation()}
           style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <p style={{ fontSize: 13, fontWeight: 800, color: '#DC2626', margin: 0 }}>
-            確定要離開「{trip.name}」？若要重新加入需要邀請代碼和密碼。
+            {t('home.card.confirmLeave', { name: trip.name })}
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setConfirmLeave(false)}
               style={{ flex: 1, padding: '9px', borderRadius: 10, border: '1.5px solid rgba(165,125,65,0.25)',
                 background: 'var(--bg-elevated)', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
-              取消
+              {t('common.cancel')}
             </button>
             <button onClick={(e) => { e.stopPropagation(); onLeave(trip.code) }}
               style={{ flex: 2, padding: '9px', borderRadius: 10, border: 'none',
                 background: 'linear-gradient(135deg,#EF4444,#B91C1C)', boxShadow: '0 3px 0 #7F1D1D',
                 color: '#fff', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
-              確認離開
+              {t('common.confirm.leave')}
             </button>
           </div>
         </div>
@@ -164,10 +170,10 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave }) {
             <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--accent)',
               background: 'rgba(180,83,9,0.10)', border: '1.5px solid rgba(180,83,9,0.22)',
               padding: '3px 10px', borderRadius: 99 }}>
-              🏖️ 共 {days} 天
+              {t('home.tripDays', { days })}
             </span>
             <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)' }}>
-              👥 {(trip.members?.length ?? 0)} 人
+              {t('home.tripMembers', { count: trip.members?.length ?? 0 })}
             </span>
           </div>
         </div>
@@ -179,26 +185,35 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave }) {
 // ── 建立計畫 Modal ────────────────────────────
 function CreateModal({ uid, onClose, onCreated }) {
   const navigate = useNavigate()
-  const [form, setForm] = useState({ tripName: '', startDate: '', endDate: '', password: '' })
-  const [showPw, setShowPw] = useState(false)
+  const { t } = useLanguage()
+  const [form, setForm] = useState({ tripName: '', startDate: '', endDate: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    if (form.startDate > form.endDate) { setError('返回日不能早於出發日'); return }
-    if (form.password.length < 4) { setError('共用密碼至少需要 4 個字元'); return }
+    if (form.startDate > form.endDate) { setError(t('create.error.dateOrder')); return }
     setLoading(true)
     try {
       const code = await createTrip({
-        name: form.tripName, startDate: form.startDate, endDate: form.endDate,
-        password: form.password, uid,
+        name: form.tripName, startDate: form.startDate, endDate: form.endDate, uid,
       })
+      // 自動新增範例卡片，幫助新使用者了解各類型功能
+      try {
+        const d = form.startDate
+        await Promise.all([
+          addCard(code, { type: 'attraction', title: '[範例] 地標廣場', day: d, startTime: '09:00', duration: 90, address: '台北 101，信義路五段 7 號', lat: 25.0339, lng: 121.5645 }),
+          addCard(code, { type: 'restaurant', title: '[範例] 當地特色餐廳', day: d, startTime: '12:00', duration: 60, address: '饒河街夜市，松山區', lat: 25.0507, lng: 121.5776 }),
+          addCard(code, { type: 'accommodation', title: '[範例] 旅館/民宿', day: d, startTime: '15:00', duration: 60, address: '住宿類型可以記錄入住地點和 Check-in 時間。', lat: null, lng: null }),
+          addCard(code, { type: 'transport', title: '[範例] 機場快線', day: d, startTime: '07:00', duration: 60, from: '出發地', to: '目的地' }),
+          addCard(code, { type: 'note', title: '[範例] 旅行筆記', day: d, startTime: '20:00', duration: 30, content: '筆記類型可以記錄任何想法、提醒事項或旅行心得！點擊卡片可進入完整筆記頁面編輯。' }),
+        ])
+      } catch (_) { /* 範例卡片失敗不影響計劃建立 */ }
       onCreated?.()
       navigate(`/trip/${code}`)
     } catch (err) {
-      setError(err.message || '建立失敗，請稍後再試')
+      setError(err.message || t('create.error.failed'))
     } finally { setLoading(false) }
   }
 
@@ -207,11 +222,11 @@ function CreateModal({ uid, onClose, onCreated }) {
       background: 'rgba(120,80,20,0.28)', backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
       onClick={onClose}>
-      <form className="glass-card-glow" style={{ width: '100%', maxWidth: 420, padding: '32px 28px' }}
+      <form className="glass-card-glow" style={{ width: '100%', maxWidth: 420, padding: '32px 28px', boxSizing: 'border-box', overflow: 'hidden' }}
         onClick={e => e.stopPropagation()} onSubmit={handleSubmit}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
-          <span style={{ fontSize: 26 }}>🗺️</span>
-          <h2 style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>建立新旅遊計畫</h2>
+          <Map size={26} color="var(--text-muted)" />
+          <h2 style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>{t('create.title')}</h2>
           <button type="button" onClick={onClose} style={{ marginLeft: 'auto', width: 32, height: 32,
             borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-elevated)',
             color: 'var(--text-muted)', fontSize: 15, cursor: 'pointer' }}>✕</button>
@@ -219,43 +234,29 @@ function CreateModal({ uid, onClose, onCreated }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <ErrorBanner message={error} />
           <div>
-            <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>計畫名稱</label>
-            <input className="game-input" type="text" placeholder="例：日本關西 2026 ✈️"
+            <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('create.label.name')}</label>
+            <input className="game-input" type="text" placeholder={t('create.placeholder.name')}
               value={form.tripName} onChange={e => setForm({...form, tripName: e.target.value})} disabled={loading} required />
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>出發日</label>
-              <input className="game-input" type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} disabled={loading} required />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('create.label.start')}</label>
+              <input className="game-input" type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} disabled={loading} required style={{ width: '100%', boxSizing: 'border-box', minWidth: 0 }} />
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>返回日</label>
-              <input className="game-input" type="date" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} disabled={loading} required />
-            </div>
-          </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>加入密碼</label>
-            <div style={{ position: 'relative' }}>
-              <input className="game-input" type={showPw ? 'text' : 'password'}
-                placeholder="設定一組密碼（朋友加入時需要）"
-                value={form.password} onChange={e => setForm({...form, password: e.target.value})}
-                disabled={loading} required style={{ paddingRight: 44 }} />
-              <button type="button" onClick={() => setShowPw(v => !v)}
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }}>
-                {showPw ? '🙈' : '👁️'}
-              </button>
-            </div>
-            <div style={{ marginTop: 7, padding: '9px 12px', borderRadius: 11,
-              background: 'rgba(180,83,9,0.07)', border: '1px solid rgba(180,83,9,0.18)',
-              fontSize: 11, fontWeight: 800, color: 'var(--accent)', lineHeight: 1.6 }}>
-              💡 朋友加入時需要同時輸入「計畫代碼」＋「這組密碼」。建立後請把兩者一起傳給對方。
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('create.label.end')}</label>
+              <input className="game-input" type="date" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} disabled={loading} required style={{ width: '100%', boxSizing: 'border-box', minWidth: 0 }} />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-            <button type="button" onClick={onClose} className="btn-game btn-ghost" style={{ flex: 1, padding: '12px', fontSize: 14 }} disabled={loading}>取消</button>
-            <button type="submit" className="btn-game btn-primary" style={{ flex: 2, padding: '12px', fontSize: 14 }} disabled={loading}>
-              {loading ? '建立中…' : '🚀 出發！'}
+          <div style={{ padding: '9px 12px', borderRadius: 11,
+            background: 'rgba(180,83,9,0.07)', border: '1px solid rgba(180,83,9,0.18)',
+            fontSize: 11, fontWeight: 800, color: 'var(--accent)', lineHeight: 1.6 }}>
+            {t('create.tip')}
+          </div>
+          <div style={{ display: 'flex', gap: 12, maxWidth: 340, margin: '0 auto', marginTop: 4 }}>
+            <button type="button" onClick={onClose} className="btn-game btn-ghost" style={{ flex: 1, padding: '13px 20px', fontSize: 14 }} disabled={loading}>{t('common.cancel')}</button>
+            <button type="submit" className="btn-game btn-primary" style={{ flex: 1, padding: '13px 20px', fontSize: 14, whiteSpace: 'nowrap' }} disabled={loading}>
+              {loading ? t('create.submitting') : t('create.submit')}
             </button>
           </div>
         </div>
@@ -265,23 +266,24 @@ function CreateModal({ uid, onClose, onCreated }) {
 }
 
 // ── 加入計畫 Modal ────────────────────────────
-function JoinModal({ uid, onClose, onJoined, initialCode = '', initialPw = '' }) {
+function JoinModal({ uid, onClose, onJoined, initialCode = '' }) {
   const navigate = useNavigate()
-  const [code, setCode]         = useState(initialCode.toUpperCase())
-  const [password, setPassword] = useState(initialPw)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
+  const { t } = useLanguage()
+  const hasAutoCode = !!initialCode
+  const [code, setCode]   = useState(initialCode.toUpperCase())
+  const [loading, setLoading] = useState(false)
+  const [error, setError]    = useState('')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
-      const trip = await joinTrip(code, password, uid)
+      const trip = await joinTrip(code, uid)
       onJoined?.()
       navigate(`/trip/${trip.code}`)
     } catch (err) {
-      setError(err.message || '加入失敗，請稍後再試')
+      setError(err.message || t('join.error.failed'))
     } finally { setLoading(false) }
   }
 
@@ -293,35 +295,47 @@ function JoinModal({ uid, onClose, onJoined, initialCode = '', initialPw = '' })
       <form className="glass-card-glow" style={{ width: '100%', maxWidth: 380, padding: '32px 28px' }}
         onClick={e => e.stopPropagation()} onSubmit={handleSubmit}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
-          <span style={{ fontSize: 26 }}>🔗</span>
-          <h2 style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>加入旅遊計畫</h2>
+          <Link size={26} color="var(--text-muted)" />
+          <h2 style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>{t('join.title')}</h2>
           <button type="button" onClick={onClose} style={{ marginLeft: 'auto', width: 32, height: 32,
             borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-elevated)',
             color: 'var(--text-muted)', fontSize: 15, cursor: 'pointer' }}>✕</button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div style={{ padding: '10px 13px', borderRadius: 12,
-            background: 'rgba(15,118,110,0.07)', border: '1px solid rgba(15,118,110,0.22)',
-            fontSize: 12, fontWeight: 800, color: '#0F766E', lineHeight: 1.6 }}>
-            ℹ️ 請向計畫建立者索取「6 碼計畫代碼」和「加入密碼」，兩者都需要填入才能加入。
-          </div>
+
+          {hasAutoCode ? (
+            <div style={{ padding: '12px 14px', borderRadius: 14,
+              background: 'rgba(15,118,110,0.07)', border: '1px solid rgba(15,118,110,0.22)',
+              display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 10, fontWeight: 900, color: '#0F766E', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('join.autoCode.label')}</div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--accent-bright)', letterSpacing: '8px', fontFamily: 'monospace' }}>
+                {code}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#0F766E' }}>{t('join.autoCode.hint')}</div>
+            </div>
+          ) : (
+            <>
+              <div style={{ padding: '10px 13px', borderRadius: 12,
+                background: 'rgba(15,118,110,0.07)', border: '1px solid rgba(15,118,110,0.22)',
+                fontSize: 12, fontWeight: 800, color: '#0F766E', lineHeight: 1.6 }}>
+                {t('join.tip')}
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('join.label.code')}</label>
+                <input className="game-input" type="text" placeholder={t('join.placeholder.code')}
+                  value={code} onChange={e => setCode(e.target.value.toUpperCase())} maxLength={6}
+                  style={{ letterSpacing: '5px', fontSize: 22, textAlign: 'center' }}
+                  disabled={loading} required autoFocus />
+              </div>
+            </>
+          )}
+
           <ErrorBanner message={error} />
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>計畫代碼（6 碼）</label>
-            <input className="game-input" type="text" placeholder="例：KJ8F2A"
-              value={code} onChange={e => setCode(e.target.value.toUpperCase())} maxLength={6}
-              style={{ letterSpacing: '5px', fontSize: 22, textAlign: 'center' }}
-              disabled={loading} required />
-          </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>加入密碼</label>
-            <input className="game-input" type="password" placeholder="向計畫建立者索取"
-              value={password} onChange={e => setPassword(e.target.value)} disabled={loading} required />
-          </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-            <button type="button" onClick={onClose} className="btn-game btn-ghost" style={{ flex: 1, padding: '12px', fontSize: 14 }} disabled={loading}>取消</button>
-            <button type="submit" className="btn-game btn-primary" style={{ flex: 2, padding: '12px', fontSize: 14 }} disabled={loading}>
-              {loading ? '驗證中…' : '✨ 加入計畫'}
+
+          <div style={{ display: 'flex', gap: 12, maxWidth: 280, margin: '0 auto', marginTop: 4 }}>
+            <button type="button" onClick={onClose} className="btn-game btn-ghost" style={{ flex: 1, padding: '12px 20px', fontSize: 14 }} disabled={loading}>{t('common.cancel')}</button>
+            <button type="submit" className="btn-game btn-primary" style={{ flex: 1, padding: '12px 20px', fontSize: 14 }} disabled={loading}>
+              {loading ? t('join.submitting') : t('join.submit')}
             </button>
           </div>
         </div>
@@ -334,11 +348,11 @@ function JoinModal({ uid, onClose, onJoined, initialCode = '', initialPw = '' })
 export default function Home() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { currentUser, signOut } = useAuth()
+  const { currentUser, signOut, redirectError } = useAuth()
   const [trips, setTrips]           = useState([])
   const [tripsLoading, setTripsLoading] = useState(true)
   const [modal, setModal]           = useState(null) // 'create' | 'join'
-  const [joinParams, setJoinParams] = useState({ code: '', pw: '' })
+  const [joinParams, setJoinParams] = useState({ code: '' })
 
   const loadTrips = async () => {
     if (!currentUser) return
@@ -375,9 +389,8 @@ export default function Home() {
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const joinCode = params.get('join')
-    const joinPw   = params.get('pw') ?? ''
     if (joinCode && currentUser) {
-      setJoinParams({ code: joinCode, pw: joinPw })
+      setJoinParams({ code: joinCode })
       setModal('join')
       // 清除 URL 參數避免重複觸發
       window.history.replaceState({}, '', '/')
@@ -389,136 +402,316 @@ export default function Home() {
     navigate('/auth', { replace: true })
   }
 
+  const { t } = useLanguage()
+  const [actionError, setActionError] = useState('')
+
   const handleDelete = async (tripCode) => {
+    setActionError('')
     try {
       await deleteTrip(tripCode, currentUser?.uid)
       setTrips(ts => ts.filter(t => t.code !== tripCode))
     } catch (err) {
       console.error(err)
+      setActionError(t('home.error.delete'))
+      setTimeout(() => setActionError(''), 4000)
     }
   }
 
   const handleLeave = async (tripCode) => {
+    setActionError('')
     try {
       await leaveTrip(tripCode, currentUser?.uid)
       setTrips(ts => ts.filter(t => t.code !== tripCode))
     } catch (err) {
       console.error(err)
+      setActionError(t('home.error.leave'))
+      setTimeout(() => setActionError(''), 4000)
     }
   }
 
+  const { isMobileMode, toggleMode } = useViewMode()
   const avatar      = currentUser?.photoURL
   const displayName = currentUser?.displayName || currentUser?.email?.split('@')[0] || '旅人'
+  const { tutorialCompleted, tutorialActive, startTutorial, demoTripData } = useTutorial()
+
+  // 登入後清除本帳號遺留的教學計畫（非教學進行中時）
+  useEffect(() => {
+    if (currentUser && !tutorialActive) {
+      cleanupDemoTrips(currentUser.uid).catch(() => {})
+    }
+  }, [currentUser?.uid, tutorialActive])
+
+  const BANNER_KEY = currentUser ? `tutorial_banner_hidden_${currentUser.uid}` : null
+  const [bannerHidden, setBannerHidden] = useState(() =>
+    BANNER_KEY ? localStorage.getItem(BANNER_KEY) === 'true' : false
+  )
+
+  // Compute the trip list to display:
+  // - Filter out any isDemoTrip trips from the fetched list
+  // - When tutorial is active and demo trip is ready, prepend it first
+  const regularTrips = trips.filter(t => !t.isDemoTrip)
+  const displayTrips = (tutorialActive && demoTripData)
+    ? [demoTripData, ...regularTrips]
+    : regularTrips
+
+  const showTutorialBanner = !tutorialCompleted && !tutorialActive && !tripsLoading && regularTrips.length === 0 && !bannerHidden
+
+  const ModeToggleBtn = () => (
+    <button onClick={toggleMode} style={{
+      padding: '6px 10px', borderRadius: 10,
+      border: '1.5px solid rgba(165,125,65,0.28)',
+      background: 'var(--bg-elevated)',
+      color: 'var(--text-muted)', fontSize: 11, fontWeight: 900,
+      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+    }}>
+      {isMobileMode ? t('home.mobileToggle.toPC') : t('home.mobileToggle.toMobile')}
+    </button>
+  )
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', paddingBottom: isMobileMode ? 80 : 0 }}>
       {/* TopBar */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 28px', height: 66, flexShrink: 0,
+        padding: isMobileMode ? '0 16px' : '0 28px',
+        height: isMobileMode ? 56 : 66, flexShrink: 0,
         background: 'rgba(250,246,234,0.97)',
         backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
         borderBottom: '2px solid rgba(165,125,65,0.22)',
         boxShadow: '0 4px 24px rgba(120,80,20,0.08)',
         position: 'sticky', top: 0, zIndex: 40,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src="/favicon.svg" alt="TripCoworking" style={{ width: 36, height: 36, flexShrink: 0 }} />
-          <h1 style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.3px', lineHeight: 1 }}>
-            Trip<span style={{ color: '#7C3AED' }}>Coworking</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobileMode ? 7 : 10 }}>
+          <img src="/favicon.svg" alt="TripTogether" style={{ width: isMobileMode ? 28 : 36, height: isMobileMode ? 28 : 36, flexShrink: 0 }} />
+          <h1 style={{ fontSize: isMobileMode ? 15 : 20, fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.3px', lineHeight: 1 }}>
+            Trip<span style={{ color: '#7C3AED' }}>Together</span>
           </h1>
+          <span style={{
+            fontSize: isMobileMode ? 9 : 10, fontWeight: 800,
+            color: '#7C3AED',
+            background: 'rgba(124,58,237,0.12)',
+            border: '1px solid rgba(124,58,237,0.28)',
+            borderRadius: 99,
+            padding: isMobileMode ? '2px 5px' : '2px 7px',
+            letterSpacing: '0.3px',
+            alignSelf: 'center',
+          }}>Beta</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {avatar ? (
-              <img src={avatar} alt="" style={{ width: 36, height: 36, borderRadius: '50%',
-                border: '2px solid rgba(165,125,65,0.35)', objectFit: 'cover' }} />
-            ) : (
-              <div style={{ width: 36, height: 36, borderRadius: '50%',
-                background: 'linear-gradient(135deg,#D97706,#B45309)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 14, color: '#fff', fontWeight: 900 }}>
-                {displayName[0].toUpperCase()}
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobileMode ? 8 : 12 }}>
+          <ModeToggleBtn />
+          {isMobileMode ? (
+            <>
+              {avatar ? (
+                <img src={avatar} alt="" style={{ width: 34, height: 34, borderRadius: '50%',
+                  border: '2px solid rgba(165,125,65,0.35)', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ width: 34, height: 34, borderRadius: '50%',
+                  background: 'linear-gradient(135deg,#D97706,#B45309)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13, color: '#fff', fontWeight: 900 }}>
+                  {displayName[0].toUpperCase()}
+                </div>
+              )}
+              <button onClick={handleSignOut} style={{
+                width: 34, height: 34, borderRadius: 10, border: '1.5px solid rgba(165,125,65,0.28)',
+                background: 'var(--bg-elevated)', color: 'var(--text-muted)', fontSize: 13,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 900,
+              }}>↩</button>
+            </>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {avatar ? (
+                  <img src={avatar} alt="" style={{ width: 36, height: 36, borderRadius: '50%',
+                    border: '2px solid rgba(165,125,65,0.35)', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: 36, height: 36, borderRadius: '50%',
+                    background: 'linear-gradient(135deg,#D97706,#B45309)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, color: '#fff', fontWeight: 900 }}>
+                    {displayName[0].toUpperCase()}
+                  </div>
+                )}
+                <span className="home-topbar-name" style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-secondary)' }}>{displayName}</span>
               </div>
-            )}
-            <span className="home-topbar-name" style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-secondary)' }}>{displayName}</span>
-          </div>
-          <button onClick={handleSignOut} className="btn-game btn-ghost"
-            style={{ padding: '8px 16px', fontSize: 13, minHeight: 44 }}>
-            登出
-          </button>
+              <button onClick={handleSignOut} className="btn-game btn-ghost"
+                style={{ padding: '8px 16px', fontSize: 13, minHeight: 44 }}>
+                {t('home.signOut')}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* 內容 */}
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: 'clamp(20px, 5vw, 40px) clamp(16px, 4vw, 28px) 100px' }}>
+      {/* Google 重新導向登入錯誤 */}
+      {redirectError && (
+        <div style={{
+          margin: isMobileMode ? '12px 12px 0' : '16px 28px 0',
+          padding: '10px 16px', borderRadius: 12,
+          background: 'rgba(220,38,38,0.08)', border: '1.5px solid rgba(220,38,38,0.25)',
+          fontSize: 13, fontWeight: 800, color: '#DC2626',
+        }}>
+          ⚠️ {t('home.error.google')}{redirectError.message || ''}
+        </div>
+      )}
 
-        {/* 我的旅遊計畫 */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          marginBottom: 24, gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <h2 style={{ fontSize: 'clamp(18px, 5vw, 24px)', fontWeight: 900, color: 'var(--text-primary)' }}>我的旅遊計畫</h2>
-            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', marginTop: 4 }}>
-              {tripsLoading ? '載入中…' : `共 ${trips.length} 個計畫`}
-            </p>
+      {/* 操作錯誤提示 */}
+      {actionError && (
+        <div style={{
+          margin: isMobileMode ? '12px 12px 0' : '16px 28px 0',
+          padding: '10px 16px', borderRadius: 12,
+          background: 'rgba(220,38,38,0.08)', border: '1.5px solid rgba(220,38,38,0.25)',
+          fontSize: 13, fontWeight: 800, color: '#DC2626',
+        }}>
+          ⚠️ {actionError}
+        </div>
+      )}
+
+      {/* 教學 Banner */}
+      {showTutorialBanner && (
+        <div style={{
+          margin: isMobileMode ? '12px 12px 0' : '16px 28px 0',
+          padding: '14px 18px', borderRadius: 18,
+          background: 'linear-gradient(135deg, rgba(180,83,9,0.10), rgba(217,119,6,0.08))',
+          border: '2px solid rgba(180,83,9,0.28)',
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          animation: 'tutorial-banner-slide 0.4s ease',
+        }}>
+          <Map size={24} color="var(--text-primary)" />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 900, color: '#92400E' }}>{t('home.tutorial.title')}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#B45309', marginTop: 2 }}>{t('home.tutorial.desc')}</div>
           </div>
-          <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-            <button onClick={() => setModal('join')} className="btn-game btn-ghost"
-              style={{ padding: '10px 18px', fontSize: 13, minHeight: 44 }}>
-              🔗 加入計畫
-            </button>
-            <button onClick={() => setModal('create')} className="btn-game btn-primary"
-              style={{ padding: '10px 20px', fontSize: 13, minHeight: 44 }}>
-              ＋ 建立新計畫
-            </button>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button onClick={() => { setBannerHidden(true); if (BANNER_KEY) localStorage.setItem(BANNER_KEY, 'true') }} style={{
+              padding: '8px 12px', borderRadius: 10, border: '1.5px solid rgba(180,83,9,0.25)',
+              background: 'transparent', color: '#92400E', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}>{t('home.tutorial.skip')}</button>
+            <button onClick={startTutorial} style={{
+              padding: '8px 16px', borderRadius: 10, border: 'none',
+              background: 'linear-gradient(135deg, #E8A020, #B45309)',
+              boxShadow: '0 3px 0 #7C2D12',
+              color: '#fff', fontSize: 12, fontWeight: 900, cursor: 'pointer',
+            }}>{t('home.tutorial.start')}</button>
           </div>
         </div>
+      )}
+
+      {/* 內容 */}
+      <div style={{ maxWidth: isMobileMode ? '100%' : 960, margin: '0 auto', padding: isMobileMode ? '16px 12px 16px' : 'clamp(20px, 5vw, 40px) clamp(16px, 4vw, 28px) 100px' }}>
+
+        {/* 我的旅遊計畫 標題列 */}
+        {!isMobileMode && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+            marginBottom: 24, gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={{ fontSize: 'clamp(18px, 5vw, 24px)', fontWeight: 900, color: 'var(--text-primary)' }}>{t('home.myTrips')}</h2>
+              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', marginTop: 4 }}>
+                {tripsLoading ? t('common.loading') : t('home.tripCount', { count: regularTrips.length })}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexShrink: 0, alignItems: 'center' }}>
+              {!tutorialCompleted && regularTrips.length > 0 && (
+                <button onClick={startTutorial} style={{
+                  padding: '8px 14px', borderRadius: 10, border: '1.5px solid rgba(180,83,9,0.30)',
+                  background: 'rgba(180,83,9,0.08)', color: '#B45309', fontSize: 12, fontWeight: 900,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                }}>{t('home.tutorial.mode')}</button>
+              )}
+              <button data-tutorial-id="join-trip-btn" onClick={() => setModal('join')} className="btn-game btn-ghost"
+                style={{ padding: '10px 18px', fontSize: 13, minHeight: 44 }}>
+                {t('home.join')}
+              </button>
+              <button data-tutorial-id="create-trip-btn" onClick={() => setModal('create')} className="btn-game btn-primary"
+                style={{ padding: '10px 20px', fontSize: 13, minHeight: 44 }}>
+                {t('home.create')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {isMobileMode && (
+          <div style={{ marginBottom: 16 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)' }}>{t('home.myTrips')}</h2>
+            <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginTop: 3 }}>
+              {tripsLoading ? t('common.loading') : t('home.tripCount', { count: regularTrips.length })}
+            </p>
+          </div>
+        )}
 
         {/* 計畫 Grid */}
         {tripsLoading ? (
-          <div className="trips-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobileMode ? '1fr' : 'repeat(auto-fill, minmax(220px, 1fr))', gap: isMobileMode ? 12 : 18 }}>
             {[1,2,3].map(i => (
-              <div key={i} style={{ height: 200, borderRadius: 22,
+              <div key={i} style={{ height: isMobileMode ? 120 : 200, borderRadius: 22,
                 background: 'rgba(165,125,65,0.08)', border: '2px solid rgba(165,125,65,0.14)',
                 animation: 'pulse 1.5s ease-in-out infinite' }} />
             ))}
           </div>
-        ) : trips.length === 0 ? (
-          <div className="glass-card" style={{ padding: '60px 40px', textAlign: 'center', borderRadius: 28 }}>
-            <div style={{ fontSize: 64, marginBottom: 20 }}>🗺️</div>
-            <h3 style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)', marginBottom: 10 }}>
-              還沒有旅遊計畫
+        ) : displayTrips.length === 0 ? (
+          <div className="glass-card" style={{ padding: isMobileMode ? '40px 24px' : '60px 40px', textAlign: 'center', borderRadius: 28 }}>
+            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}><Map size={isMobileMode ? 52 : 64} color="var(--text-muted)" /></div>
+            <h3 style={{ fontSize: isMobileMode ? 17 : 20, fontWeight: 900, color: 'var(--text-primary)', marginBottom: 10 }}>
+              {t('home.empty.title')}
             </h3>
-            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 28 }}>
-              建立你的第一個計畫，或輸入代碼加入朋友的旅程
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 24 }}>
+              {t('home.empty.desc')}
             </p>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button onClick={() => setModal('create')} className="btn-game btn-primary"
-                style={{ padding: '14px 28px', fontSize: 15 }}>
-                ＋ 建立新旅遊計畫
-              </button>
-              <button onClick={() => setModal('join')} className="btn-game btn-ghost"
-                style={{ padding: '14px 28px', fontSize: 15 }}>
-                🔗 加入現有計畫
-              </button>
-            </div>
+            {!isMobileMode && (
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button onClick={() => setModal('create')} className="btn-game btn-primary"
+                  style={{ padding: '14px 28px', fontSize: 15 }}>
+                  {t('home.createLong')}
+                </button>
+                <button onClick={() => setModal('join')} className="btn-game btn-ghost"
+                  style={{ padding: '14px 28px', fontSize: 15 }}>
+                  {t('home.joinExisting')}
+                </button>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="trips-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 18 }}>
-            {trips.map(trip => (
+          <div style={{ display: 'grid', gridTemplateColumns: isMobileMode ? '1fr' : 'repeat(auto-fill, minmax(220px, 1fr))', gap: isMobileMode ? 12 : 18 }}>
+            {displayTrips.map((trip, idx) => (
               <TripCard
                 key={trip.code}
                 trip={trip}
                 currentUser={currentUser}
+                isMobileMode={isMobileMode}
                 onClick={() => navigate(`/trip/${trip.code}`)}
                 onDelete={handleDelete}
                 onLeave={handleLeave}
+                tutorialId={trip.isDemoTrip ? 'first-trip-card' : undefined}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* 手機版底部固定操作欄 */}
+      {isMobileMode && (
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+          background: 'rgba(250,246,234,0.97)',
+          backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+          borderTop: '2px solid rgba(165,125,65,0.22)',
+          padding: '10px 16px',
+          paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))',
+        }}>
+          <div style={{ display: 'flex', gap: 12, maxWidth: 300, margin: '0 auto' }}>
+            <button data-tutorial-id="join-trip-btn" onClick={() => setModal('join')} className="btn-game btn-ghost"
+              style={{ flex: 1, padding: '10px 16px', fontSize: 13, fontWeight: 900 }}>
+              {t('home.join')}
+            </button>
+            <button data-tutorial-id="create-trip-btn" onClick={() => setModal('create')} className="btn-game btn-primary"
+              style={{ flex: 1, padding: '10px 16px', fontSize: 13, fontWeight: 900 }}>
+              {t('home.create')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       {modal === 'create' && (
@@ -527,10 +720,9 @@ export default function Home() {
       {modal === 'join' && (
         <JoinModal
           uid={currentUser?.uid}
-          onClose={() => { setModal(null); setJoinParams({ code: '', pw: '' }) }}
+          onClose={() => { setModal(null); setJoinParams({ code: '' }) }}
           onJoined={loadTrips}
           initialCode={joinParams.code}
-          initialPw={joinParams.pw}
         />
       )}
     </div>

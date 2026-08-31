@@ -2,6 +2,9 @@ import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import {
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signInWithCustomToken,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -11,9 +14,15 @@ import {
   updateProfile,
   EmailAuthProvider,
   reauthenticateWithCredential,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
 } from 'firebase/auth'
 import { auth } from '../services/firebase'
 import { createUserProfile } from '../services/firestore'
+
+// LINE in-app browser blocks popup — must redirect or show fallback
+export const isLineInAppBrowser = /Line\//i.test(navigator.userAgent)
 
 const AuthContext = createContext(null)
 
@@ -22,7 +31,20 @@ const INACTIVITY_MS = 24 * 60 * 60 * 1000 // 24 小時
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [redirectError, setRedirectError] = useState(null)
   const lastSaveRef = useRef(0)
+
+  // On mobile: pick up the Google result after signInWithRedirect returns to app
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then(async result => {
+        if (result?.user) await createUserProfile(result.user)
+      })
+      .catch(err => {
+        console.error('[Google redirect error]', err)
+        setRedirectError(err)
+      })
+  }, [])
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, user => {
@@ -59,9 +81,11 @@ export function AuthProvider({ children }) {
   }, [])
 
   // 視窗重新獲得焦點時檢查閒置時間，超過 24 小時自動登出
+  // 「記住我」模式下跳過此檢查
   useEffect(() => {
     const check = async () => {
       if (!auth.currentUser) return
+      if (localStorage.getItem('tc_remember_me') === 'true') return
       const last = parseInt(localStorage.getItem('last_activity') ?? '0', 10)
       if (last && Date.now() - last > INACTIVITY_MS) {
         localStorage.removeItem('last_activity')
@@ -73,24 +97,41 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('focus', check)
   }, [])
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (rememberMe = true) => {
     const provider = new GoogleAuthProvider()
-    const result = await signInWithPopup(auth, provider)
-    await createUserProfile(result.user)
-    return result.user
+    await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence)
+    if (rememberMe) localStorage.setItem('tc_remember_me', 'true')
+    else localStorage.removeItem('tc_remember_me')
+    if (isLineInAppBrowser) {
+      return signInWithRedirect(auth, provider)
+    }
+    return signInWithPopup(auth, provider).then(async result => {
+      await createUserProfile(result.user)
+      return result.user
+    })
   }
 
   const signUpWithEmail = async (email, password, displayName) => {
+    // 新帳號預設記住登入
+    await setPersistence(auth, browserLocalPersistence)
+    localStorage.setItem('tc_remember_me', 'true')
     const { user } = await createUserWithEmailAndPassword(auth, email, password)
     if (displayName) await updateProfile(user, { displayName })
     await createUserProfile({ ...user, displayName: displayName || user.displayName })
     return user
   }
 
-  const signInWithEmail = (email, password) =>
-    signInWithEmailAndPassword(auth, email, password)
+  const signInWithEmail = async (email, password, rememberMe = true) => {
+    await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence)
+    if (rememberMe) localStorage.setItem('tc_remember_me', 'true')
+    else localStorage.removeItem('tc_remember_me')
+    return signInWithEmailAndPassword(auth, email, password)
+  }
 
-  const signOut = () => firebaseSignOut(auth)
+  const signOut = () => {
+    localStorage.removeItem('tc_remember_me')
+    return firebaseSignOut(auth)
+  }
 
   const sendReset = (email) => sendPasswordResetEmail(auth, email)
 
@@ -100,13 +141,26 @@ export function AuthProvider({ children }) {
     await firebaseUpdatePassword(currentUser, newPassword)
   }
 
+  const signInWithLineToken = async (customToken, displayName, pictureUrl) => {
+    await setPersistence(auth, browserLocalPersistence)
+    localStorage.setItem('tc_remember_me', 'true')
+    const { user } = await signInWithCustomToken(auth, customToken)
+    await createUserProfile({
+      uid: user.uid,
+      email: user.email ?? '',
+      displayName: displayName || user.displayName || '',
+      photoURL: pictureUrl || user.photoURL || '',
+    })
+    return user
+  }
+
   const isEmailUser = currentUser?.providerData?.[0]?.providerId === 'password'
 
   return (
     <AuthContext.Provider value={{
-      currentUser, authLoading,
+      currentUser, authLoading, redirectError,
       signInWithGoogle, signUpWithEmail, signInWithEmail,
-      signOut, sendReset, changePassword, isEmailUser,
+      signInWithLineToken, signOut, sendReset, changePassword, isEmailUser,
     }}>
       {children}
     </AuthContext.Provider>

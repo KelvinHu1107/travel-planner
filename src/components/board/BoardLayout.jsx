@@ -33,7 +33,7 @@ function TimeColumn() {
         borderBottom: '2px solid rgba(165,125,65,0.25)',
       }} />
 
-      {TIME_SLOTS.map(({ time, isHour }) => (
+      {TIME_SLOTS.map(({ time, isHour }, idx) => (
         <div key={time} style={{
           height: SLOT_HEIGHT,
           display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
@@ -46,7 +46,7 @@ function TimeColumn() {
             <span style={{
               fontSize: 12, fontWeight: 900,
               color: 'var(--text-muted)',
-              transform: 'translateY(-7px)',
+              transform: idx === 0 ? 'translateY(5px)' : 'translateY(-7px)',
               letterSpacing: '0.3px',
             }}>
               {time}
@@ -59,14 +59,14 @@ function TimeColumn() {
 }
 
 // ── 單天欄 ──────────────────────────────────
-function DayColumn({ day, dayIndex, isToday, currentTimePx, onSlotClick, cards, onDeleteCard, onCardClick, droppedCardId, shakingCardIds }) {
+function DayColumn({ day, dayIndex, isToday, currentTimePx, onSlotClick, cards, onDeleteCard, onCardClick, droppedCardId, shakingCardIds, mobileMode = false, firstCardTutorialId }) {
   const date     = new Date(day + 'T00:00:00')
   const monthDay = `${date.getMonth() + 1}/${date.getDate()}`
   const weekday  = WEEKDAYS[date.getDay()]
 
   return (
     <div style={{
-      width: DAY_COL_W, flexShrink: 0,
+      ...(mobileMode ? { flex: 1, minWidth: 0 } : { width: DAY_COL_W, flexShrink: 0 }),
       borderRight: '2px solid rgba(165,125,65,0.12)',
     }}>
       {/* 日期標頭 */}
@@ -175,8 +175,8 @@ function DayColumn({ day, dayIndex, isToday, currentTimePx, onSlotClick, cards, 
           </div>
         )}
 
-        {cards.map(card => (
-          <CardItem key={card.id} card={card} onDelete={onDeleteCard} onCardClick={onCardClick} droppedId={droppedCardId} shakingIds={shakingCardIds} />
+        {[...cards].sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? '')).map((card, idx) => (
+          <CardItem key={card.id} card={card} onDelete={onDeleteCard} onCardClick={onCardClick} droppedId={droppedCardId} shakingIds={shakingCardIds} tutorialId={idx === 0 ? firstCardTutorialId : undefined} />
         ))}
       </div>
     </div>
@@ -184,12 +184,13 @@ function DayColumn({ day, dayIndex, isToday, currentTimePx, onSlotClick, cards, 
 }
 
 // ── 主看板 ──────────────────────────────────
-export default function BoardLayout({ trip, cards = [], onSlotClick, onDeleteCard, onCardClick, droppedCardId, shakingCardIds = [] }) {
-  const days      = getDaysInRange(trip.startDate, trip.endDate)
+export default function BoardLayout({ trip, cards = [], days: daysProp, mobileMode = false, onSlotClick, onDeleteCard, onCardClick, droppedCardId, shakingCardIds = [], firstCardTutorialId }) {
+  const allDays   = getDaysInRange(trip.startDate, trip.endDate)
+  const days      = daysProp ?? allDays
   const todayStr  = getTodayStr()
   const scrollRef = useRef(null)
   const [timePx, setTimePx] = useState(getCurrentTimePx())
-  const scrollKey = `board-scroll-${trip.code ?? ''}`
+  const scrollKey = `board-scroll-${trip.code ?? ''}${mobileMode ? '-m' : ''}`
 
   useEffect(() => {
     const id = setInterval(() => setTimePx(getCurrentTimePx()), 60000)
@@ -203,18 +204,30 @@ export default function BoardLayout({ trip, cards = [], onSlotClick, onDeleteCar
       try {
         const { top, left } = JSON.parse(saved)
         scrollRef.current.scrollTop = top
-        scrollRef.current.scrollLeft = left
+        if (!mobileMode) scrollRef.current.scrollLeft = left
         return
       } catch {}
     }
     const top = ((8 - START_HOUR) * 2) * SLOT_HEIGHT - HEADER_H / 2
     scrollRef.current.scrollTop = Math.max(0, top)
-    const todayIdx = days.indexOf(todayStr)
-    if (todayIdx >= 0) {
-      const left = TIME_COL_W + todayIdx * DAY_COL_W - 40
-      scrollRef.current.scrollLeft = Math.max(0, left)
+    if (!mobileMode) {
+      const todayIdx = days.indexOf(todayStr)
+      if (todayIdx >= 0) {
+        const left = TIME_COL_W + todayIdx * DAY_COL_W - 40
+        scrollRef.current.scrollLeft = Math.max(0, left)
+      }
     }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When drag tutorial step activates, scroll so the drag card sits ~35% from the top
+  // of the visible area — card is in the center with empty slots visible below.
+  useEffect(() => {
+    if (!firstCardTutorialId || !scrollRef.current) return
+    const containerH   = scrollRef.current.clientHeight
+    const cardTopPx    = ((8 - START_HOUR) * 2) * SLOT_HEIGHT  // 08:00 row
+    const desiredOffset = Math.max(60, (containerH - HEADER_H) * 0.30)
+    scrollRef.current.scrollTop = Math.max(0, cardTopPx - desiredOffset)
+  }, [firstCardTutorialId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleScroll = () => {
     if (!scrollRef.current) return
@@ -225,27 +238,33 @@ export default function BoardLayout({ trip, cards = [], onSlotClick, onDeleteCar
   }
 
   return (
-    <div ref={scrollRef} onScroll={handleScroll} style={{ flex: 1, overflow: 'auto' }}>
+    <div ref={scrollRef} onScroll={handleScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
       <div style={{
         display: 'flex',
-        minWidth: `${TIME_COL_W + DAY_COL_W * days.length}px`,
+        ...(mobileMode ? { width: '100%' } : { minWidth: `${TIME_COL_W + DAY_COL_W * days.length}px` }),
+        paddingBottom: mobileMode ? 80 : 0,
       }}>
         <TimeColumn />
-        {days.map((day, i) => (
-          <DayColumn
-            key={day}
-            day={day}
-            dayIndex={i + 1}
-            isToday={day === todayStr}
-            currentTimePx={timePx}
-            onSlotClick={onSlotClick}
-            cards={cards.filter(c => c.day === day)}
-            onDeleteCard={onDeleteCard}
-            onCardClick={onCardClick}
-            droppedCardId={droppedCardId}
-            shakingCardIds={shakingCardIds}
-          />
-        ))}
+        {days.map((day, i) => {
+          const globalIdx = allDays.indexOf(day)
+          return (
+            <DayColumn
+              key={day}
+              day={day}
+              dayIndex={globalIdx >= 0 ? globalIdx + 1 : i + 1}
+              isToday={day === todayStr}
+              currentTimePx={timePx}
+              onSlotClick={onSlotClick}
+              cards={cards.filter(c => c.day === day)}
+              onDeleteCard={onDeleteCard}
+              onCardClick={onCardClick}
+              droppedCardId={droppedCardId}
+              shakingCardIds={shakingCardIds}
+              mobileMode={mobileMode}
+              firstCardTutorialId={i === 0 ? firstCardTutorialId : undefined}
+            />
+          )
+        })}
       </div>
     </div>
   )

@@ -1,20 +1,24 @@
 import { useState } from 'react'
-import { useDraggable, useDroppable, useDndMonitor } from '@dnd-kit/core'
+import { useDraggable } from '@dnd-kit/core'
 import { SLOT_HEIGHT, START_HOUR } from '../board/boardConstants'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Clock, Map, Image, FileText as FileTextIcon } from 'lucide-react'
 import {
-  Compass, AirplaneTilt, Receipt, NotePencil,
+  Compass, AirplaneTilt, Receipt,
   AirplaneTakeoff, Car, Train, PersonSimpleWalk, Boat,
   ForkKnife, Bus, Bed, ShoppingBag, Ticket, Package,
 } from '@phosphor-icons/react'
 
+const IS_TOUCH = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0
+
 // 分裂互補配色對應淺色沙底背景
 export const CATEGORY = {
-  attraction: { icon: '📍', IconComp: Compass,     label: '景點',  color: '#C2410C', bg: 'rgba(194,65,12,0.07)',  border: 'rgba(194,65,12,0.28)'  },
-  transport:  { icon: '🚌', IconComp: AirplaneTilt, label: '交通',  color: '#0F766E', bg: 'rgba(15,118,110,0.07)', border: 'rgba(15,118,110,0.28)' },
-  expense:    { icon: '💰', IconComp: Receipt,      label: '開銷',  color: '#92400E', bg: 'rgba(146,64,14,0.07)',  border: 'rgba(146,64,14,0.28)'  },
-  note:       { icon: '📝', IconComp: NotePencil,   label: '筆記',  color: '#5B21B6', bg: 'rgba(91,33,182,0.07)',  border: 'rgba(91,33,182,0.28)'  },
+  attraction:    { icon: '📍', IconComp: Compass,     label: '景點',  color: '#C2410C', bg: 'rgba(194,65,12,0.07)',  border: 'rgba(194,65,12,0.28)'  },
+  restaurant:    { icon: '🍽️', IconComp: ForkKnife,   label: '餐廳',  color: '#B45309', bg: 'rgba(180,83,9,0.07)',   border: 'rgba(180,83,9,0.28)'   },
+  accommodation: { icon: '🏨', IconComp: Bed,          label: '住宿',  color: '#1D4ED8', bg: 'rgba(29,78,216,0.07)',  border: 'rgba(29,78,216,0.28)'  },
+  transport:     { icon: '🚌', IconComp: AirplaneTilt, label: '交通',  color: '#0F766E', bg: 'rgba(15,118,110,0.07)', border: 'rgba(15,118,110,0.28)' },
 }
+
+const PLACE_TYPES = new Set(['attraction', 'restaurant', 'accommodation'])
 
 const TRANSPORT_ICON_COMP = {
   flight:  AirplaneTakeoff,
@@ -45,32 +49,14 @@ export function minutesToTime(min) {
   return `${h}:${m}`
 }
 
-export default function CardItem({ card, onDelete, onCardClick, droppedId, shakingIds = [] }) {
+export default function CardItem({ card, onDelete, onCardClick, droppedId, shakingIds = [], tutorialId }) {
   const [hovered, setHovered] = useState(false)
-  const [noteHovering, setNoteHovering] = useState(false)
-  const cfg = CATEGORY[card.type] ?? CATEGORY.note
+  const cfg = CATEGORY[card.type] ?? CATEGORY.attraction
 
   const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
     id: card.id,
     data: { card },
   })
-
-  const { setNodeRef: setDropRef, isOver } = useDroppable({
-    id: `card-drop-${card.id}`,
-    data: { cardId: card.id },
-  })
-
-  useDndMonitor({
-    onDragStart({ active }) {
-      if (active.data.current?.card?.type === 'note' && active.id !== card.id) {
-        setNoteHovering(true)
-      }
-    },
-    onDragEnd()    { setNoteHovering(false) },
-    onDragCancel() { setNoteHovering(false) },
-  })
-
-  const setRefs = (node) => { setDragRef(node); setDropRef(node) }
 
   const topPx    = (timeToMinutes(card.startTime) - START_HOUR * 60) / 30 * SLOT_HEIGHT
   const heightPx = Math.max((card.duration / 30) * SLOT_HEIGHT - 8, 44)
@@ -85,8 +71,7 @@ export default function CardItem({ card, onDelete, onCardClick, droppedId, shaki
   const hasImages = card.images?.length > 0 ||
     card.attachedNotes?.some(n => n.images?.length > 0)
 
-  const handleNavigate = (e) => {
-    e.stopPropagation()
+  const handleNavigate = (e) => {    e.stopPropagation()
     const base = 'https://www.google.com/maps/dir/?api=1'
     const url = card.placeId
       ? `${base}&destination=${encodeURIComponent(card.address || card.title)}&destination_place_id=${card.placeId}`
@@ -96,14 +81,16 @@ export default function CardItem({ card, onDelete, onCardClick, droppedId, shaki
     window.open(url, '_blank')
   }
 
-  const showDropHint = noteHovering && !isDragging
-  const isDropOver   = showDropHint && isOver
+  const handlePadLeft = isCompact ? 10 : 12
+
+  const touchPadLeft = IS_TOUCH ? 48 : (isCompact ? 10 : 12)
 
   return (
     <div
-      ref={setRefs}
-      {...listeners}
+      ref={setDragRef}
       {...attributes}
+      {...(IS_TOUCH ? {} : listeners)}
+      {...(tutorialId ? { 'data-tutorial-id': tutorialId } : {})}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => !isDragging && onCardClick?.(card)}
@@ -114,29 +101,23 @@ export default function CardItem({ card, onDelete, onCardClick, droppedId, shaki
         right: 8,
         height: heightPx,
         borderRadius: 16,
-        background: isDropOver
-          ? `${cfg.color}14`
-          : hovered
-          ? `${cfg.color}12`
-          : cfg.bg,
-        border: isDropOver
-          ? `2.5px solid ${cfg.color}`
-          : showDropHint
-          ? `2px dashed ${cfg.color}88`
-          : `1.5px solid ${hovered ? cfg.border : cfg.border}`,
+        background: hovered ? `${cfg.color}12` : cfg.bg,
+        border: `1.5px solid ${cfg.border}`,
         borderLeft: `5px solid ${cfg.color}`,
         boxShadow: isDragging
           ? `0 14px 36px ${cfg.color}40, 0 0 0 2px ${cfg.color}55`
-          : isDropOver
-          ? `0 0 18px ${cfg.color}45, 0 0 0 1px ${cfg.color}35`
           : hovered
           ? `0 7px 0 ${cfg.color}28, 0 10px 28px ${cfg.color}30, 0 2px 8px rgba(0,0,0,0.10), inset 0 1.5px 0 rgba(255,255,255,0.85)`
           : `0 3px 0 rgba(140,100,40,0.18), 0 5px 16px rgba(100,60,10,0.10), inset 0 1.5px 0 rgba(255,255,255,0.72)`,
-        padding: isCompact ? '5px 10px' : '9px 12px',
+        paddingTop: isCompact ? 5 : 9,
+        paddingRight: 10,
+        paddingBottom: isCompact ? 5 : 9,
+        paddingLeft: IS_TOUCH ? touchPadLeft : handlePadLeft,
         display: 'flex',
         flexDirection: 'column',
         gap: 3,
-        cursor: isDragging ? 'grabbing' : 'grab',
+        cursor: IS_TOUCH ? 'default' : (isDragging ? 'grabbing' : 'grab'),
+        touchAction: 'auto',
         opacity: isDragging ? 0 : 1,
         zIndex: isDragging ? 0 : (hovered ? 15 : 5),
         userSelect: 'none',
@@ -150,14 +131,41 @@ export default function CardItem({ card, onDelete, onCardClick, droppedId, shaki
         : undefined
       }
     >
+      {/* Touch drag handle — press and move to drag */}
+      {IS_TOUCH && (
+        <div
+          {...listeners}
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'absolute', left: 0, top: 0, bottom: 0, width: 44,
+            touchAction: 'none', cursor: 'grab', zIndex: 8,
+            borderRadius: '16px 0 0 16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: `linear-gradient(90deg, ${cfg.color}22 0%, transparent 100%)`,
+          }}
+        >
+          {/* 2×3 grip dots */}
+          <div style={{ display: 'flex', gap: 3, paddingLeft: 10 }}>
+            {[0, 1].map(col => (
+              <div key={col} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {[0, 1, 2].map(row => (
+                  <div key={row} style={{
+                    width: 3.5, height: 3.5, borderRadius: '50%',
+                    background: cfg.color,
+                    opacity: 0.55,
+                  }} />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {/* 頂行：圖示 + 標題 + 刪除 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
           <span style={{ fontSize: isCompact ? 14 : 16, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-            {card.type === 'expense' && card.expenseCategory && EXPENSE_CAT_ICON_COMP[card.expenseCategory]
-              ? (() => { const EC = EXPENSE_CAT_ICON_COMP[card.expenseCategory]; return <EC size={isCompact ? 13 : 15} weight="fill" color={cfg.color} /> })()
-              : cfg.IconComp
-              ? <cfg.IconComp size={isCompact ? 13 : 15} weight="fill" color={cfg.color} />
+            {cfg.IconComp
+              ? <cfg.IconComp size={isCompact ? 13 : 15} weight="regular" color="var(--text-primary)" />
               : cfg.icon}
           </span>
           <span style={{
@@ -168,7 +176,17 @@ export default function CardItem({ card, onDelete, onCardClick, droppedId, shaki
           </span>
         </div>
 
-        {hovered && !showDropHint && (
+        {card.images?.length > 0 && !isDragging && (
+          <div style={{
+            width: 24, height: 24, borderRadius: 6, overflow: 'hidden', flexShrink: 0,
+            border: '1.5px solid rgba(255,255,255,0.80)',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+            opacity: hovered ? 0 : 1, transition: 'opacity 0.1s',
+          }}>
+            <img src={card.images[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        )}
+        {hovered && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(card.id) }}
             onPointerDown={e => e.stopPropagation()}
@@ -185,22 +203,15 @@ export default function CardItem({ card, onDelete, onCardClick, droppedId, shaki
         )}
       </div>
 
-      {/* Drop hint */}
-      {isDropOver && (
-        <div style={{ fontSize: 11, fontWeight: 900, color: cfg.color, textAlign: 'center', marginTop: 2 }}>
-          放開以附加筆記
-        </div>
-      )}
-
       {/* 時間 */}
-      {!isCompact && !isDropOver && (
+      {!isCompact && (
         <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.2px' }}>
           {card.startTime} – {endTime}
         </div>
       )}
 
       {/* 交通 */}
-      {!isCompact && !isDropOver && card.type === 'transport' && (card.from || card.to) && (
+      {!isCompact && card.type === 'transport' && (card.from || card.to) && (
         <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
           {(() => { const TC = TRANSPORT_ICON_COMP[card.mode]; return TC ? <TC size={13} color="var(--text-muted)" /> : <span>{TRANSPORT_ICON[card.mode] ?? '🚌'}</span> })()}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -209,22 +220,22 @@ export default function CardItem({ card, onDelete, onCardClick, droppedId, shaki
         </div>
       )}
 
-      {/* 景點：當日營業時間 */}
-      {!isCompact && !isDropOver && card.type === 'attraction' && card.weekdayText && (() => {
+      {/* 景點/餐廳：當日營業時間 */}
+      {!isCompact && PLACE_TYPES.has(card.type) && card.weekdayText && (() => {
         const todayIdx = (new Date().getDay() + 6) % 7
         const hoursOnly = card.weekdayText[todayIdx]?.replace(/^[^:]+: ?/, '') ?? null
         return hoursOnly ? (
           <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)',
             display: 'flex', alignItems: 'center', gap: 4,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            <span>🕐</span>
+            <Clock size={10} color="var(--text-muted)" />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hoursOnly}</span>
           </div>
         ) : null
       })()}
 
-      {/* 景點導航 */}
-      {!isCompact && !isDropOver && card.type === 'attraction' && (
+      {/* 景點/餐廳/住宿導航 */}
+      {!isCompact && PLACE_TYPES.has(card.type) && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
           {card.address && (
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
@@ -236,34 +247,19 @@ export default function CardItem({ card, onDelete, onCardClick, droppedId, shaki
             onClick={handleNavigate}
             onPointerDown={e => e.stopPropagation()}
             style={{
-              flexShrink: 0, background: 'rgba(194,65,12,0.10)',
-              border: '1.5px solid rgba(194,65,12,0.30)', borderRadius: 8,
-              padding: '3px 10px', fontSize: 11, fontWeight: 900, color: '#C2410C',
+              flexShrink: 0, background: `${cfg.color}1a`,
+              border: `1.5px solid ${cfg.color}50`, borderRadius: 8,
+              padding: '3px 10px', fontSize: 11, fontWeight: 900, color: cfg.color,
               cursor: 'pointer', whiteSpace: 'nowrap',
             }}
           >
-            🗺️ 導航
+            <Map size={11} style={{ marginRight: 4 }} /> 導航
           </button>
         </div>
       )}
 
-      {/* 開銷 */}
-      {!isCompact && !isDropOver && card.type === 'expense' && card.amount != null && (
-        <div style={{ fontSize: 14, fontWeight: 900, color: '#92400E', marginTop: 'auto' }}>
-          {card.currency ?? 'TWD'} {Number(card.amount).toLocaleString()}
-        </div>
-      )}
-
-      {/* 筆記摘要 */}
-      {!isCompact && !isDropOver && card.type === 'note' && card.content && (
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {card.content.replace(/^#{1,3} /gm, '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').replace(/^- \[[ x]\] /gm, '').replace(/^- /gm, '').replace(/~~(.+?)~~/g, '$1').replace(/^---+$/gm, '').trim()}
-        </div>
-      )}
-
       {/* ── 底部 badge 列（圖片 + 筆記，明顯顯示） ── */}
-      {!isDragging && !isDropOver && (hasNotes || hasImages) && (
+      {!isDragging && (hasNotes || hasImages) && (
         <div style={{
           display: 'flex', gap: 5, flexWrap: 'wrap',
           marginTop: isCompact ? 0 : 'auto',
@@ -277,7 +273,7 @@ export default function CardItem({ card, onDelete, onCardClick, droppedId, shaki
               background: `${cfg.color}12`,
               border: `1px solid ${cfg.color}30`,
               borderRadius: 20, padding: '1px 7px',
-            }}>🖼️ 圖片</span>
+            }}><Image size={9} style={{ marginRight: 3, display: 'inline', verticalAlign: 'middle' }} /> 圖片</span>
           )}
           {hasNotes && (
             <span style={{
@@ -286,7 +282,7 @@ export default function CardItem({ card, onDelete, onCardClick, droppedId, shaki
               background: `${cfg.color}12`,
               border: `1px solid ${cfg.color}30`,
               borderRadius: 20, padding: '1px 7px',
-            }}>📝 筆記</span>
+            }}><FileTextIcon size={9} style={{ marginRight: 3, display: 'inline', verticalAlign: 'middle' }} /> 筆記</span>
           )}
         </div>
       )}
@@ -295,7 +291,7 @@ export default function CardItem({ card, onDelete, onCardClick, droppedId, shaki
 }
 
 export function CardPreview({ card }) {
-  const cfg = CATEGORY[card.type] ?? CATEGORY.note
+  const cfg = CATEGORY[card.type] ?? CATEGORY.attraction
   const heightPx = Math.max((card.duration / 30) * SLOT_HEIGHT - 8, 44)
   const endTime = minutesToTime(timeToMinutes(card.startTime) + card.duration)
 

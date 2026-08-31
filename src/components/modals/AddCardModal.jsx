@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react'
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { storage } from '../../services/firebase'
 import { addStorageUsedBytes, getStorageUsedMB } from '../../services/firestore'
 import { compressImage, IMAGE_LIMIT_MB, TRIP_LIMIT_MB } from '../../utils/imageUtils'
@@ -7,41 +7,45 @@ import { CATEGORY } from '../cards/CardItem'
 import PlaceSearch from '../ui/PlaceSearch'
 import FormatToolbar from '../ui/FormatToolbar'
 import { loadGoogleMaps, nearbySearch } from '../../services/maps'
-import { ArrowLeft, X, CircleCheck, Plus } from 'lucide-react'
+import { ArrowLeft, X, CircleCheck, Plus, FileText, Pencil, AlertTriangle,
+  Plane, Car, Train, Footprints, Sailboat,
+  UtensilsCrossed, Landmark, BedDouble, SquareParking,
+} from 'lucide-react'
+import {
+  AirplaneTakeoff, PersonSimpleWalk, Boat,
+} from '@phosphor-icons/react'
+import { useLanguage } from '../../i18n/LanguageContext'
 
 const TRANSPORT_MODES = [
-  { id: 'flight',  icon: '✈️', label: '飛機' },
-  { id: 'transit', icon: '🚇', label: '大眾運輸' },
-  { id: 'car',     icon: '🚗', label: '自駕/計程車' },
-  { id: 'walk',    icon: '🚶', label: '步行' },
-  { id: 'boat',    icon: '⛴️', label: '船' },
+  { id: 'flight',  IconComp: AirplaneTakeoff, labelKey: 'addCard.transport.flight' },
+  { id: 'transit', IconComp: Train,           labelKey: 'addCard.transport.transit' },
+  { id: 'car',     IconComp: Car,              labelKey: 'addCard.transport.car' },
+  { id: 'walk',    IconComp: PersonSimpleWalk, labelKey: 'addCard.transport.walk' },
+  { id: 'boat',    IconComp: Boat,             labelKey: 'addCard.transport.boat' },
 ]
 
 const CURRENCIES = ['TWD', 'JPY', 'USD', 'EUR', 'KRW', 'HKD', 'SGD', 'AUD']
 
 const EXPENSE_CATEGORIES = [
-  { id: 'food',          icon: '🍜', label: '餐飲' },
-  { id: 'transport',     icon: '🚌', label: '交通' },
-  { id: 'accommodation', icon: '🏨', label: '住宿' },
-  { id: 'shopping',      icon: '🛍️', label: '購物' },
-  { id: 'ticket',        icon: '🎟️', label: '門票' },
-  { id: 'other',         icon: '💼', label: '其他' },
+  { id: 'food',          icon: '🍜', labelKey: 'addCard.expense.food' },
+  { id: 'transport',     icon: '🚌', labelKey: 'addCard.expense.transport' },
+  { id: 'accommodation', icon: '🏨', labelKey: 'addCard.expense.accommodation' },
+  { id: 'shopping',      icon: '🛍️', labelKey: 'addCard.expense.shopping' },
+  { id: 'ticket',        icon: '🎟️', labelKey: 'addCard.expense.ticket' },
+  { id: 'other',         icon: '💼', labelKey: 'addCard.expense.other' },
 ]
 
-const DURATIONS = [
-  { value: 30,   label: '30 分鐘' },
-  { value: 60,   label: '1 小時' },
-  { value: 90,   label: '1.5 小時' },
-  { value: 120,  label: '2 小時' },
-  { value: 180,  label: '3 小時' },
-  { value: 240,  label: '4 小時' },
-  { value: 360,  label: '6 小時' },
-  { value: 480,  label: '8 小時' },
-  { value: 600,  label: '10 小時' },
-  { value: 720,  label: '12 小時' },
-  { value: 960,  label: '16 小時' },
-  { value: 1440, label: '24 小時' },
-]
+const DURATION_VALUES = [30, 60, 90, 120, 180, 240, 360, 480, 600, 720, 960, 1440]
+
+function getDurationLabel(mins, t) {
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  const hr  = t('addCard.field.duration.hour')
+  const min = t('addCard.field.duration.min')
+  if (h === 0) return `${m} ${min}`
+  if (m === 0) return `${h} ${hr}`
+  return `${h} ${hr} ${m} ${min}`
+}
 
 function Label({ children }) {
   return (
@@ -67,20 +71,24 @@ function Field({ label, children }) {
   )
 }
 
-const CATEGORY_QUICK_LABEL = {
-  note: '新增筆記',
-  expense: '新增消費紀錄',
+const PLACE_CATEGORIES = new Set(['attraction', 'restaurant', 'accommodation'])
+const QUICK_LABEL_KEYS = new Set(['restaurant', 'accommodation'])
+
+function tToMin(t) {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
 }
 
 // ── 步驟一：選類別 ──────────────────────────
 function CategoryStep({ onSelect }) {
+  const { t } = useLanguage()
   return (
     <div>
       <h2 style={{ fontSize: 19, fontWeight: 900, color: 'var(--text-primary)', marginBottom: 6 }}>
-        新增什麼？
+        {t('addCard.step1.title')}
       </h2>
       <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 24 }}>
-        選擇一個類別開始
+        {t('addCard.step1.subtitle')}
       </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -109,9 +117,11 @@ function CategoryStep({ onSelect }) {
               e.currentTarget.style.boxShadow = ''
             }}
           >
-            <span style={{ fontSize: 30 }}>{cfg.icon}</span>
+            {cfg.IconComp
+              ? <cfg.IconComp size={30} weight="regular" color="var(--text-primary)" />
+              : <span style={{ fontSize: 30 }}>{cfg.icon}</span>}
             <span style={{ fontSize: 14, fontWeight: 900, color: cfg.color }}>
-              {CATEGORY_QUICK_LABEL[key] ?? cfg.label}
+              {QUICK_LABEL_KEYS.has(key) ? t('addCard.quick.' + key) : t('category.' + key)}
             </span>
           </button>
         ))}
@@ -122,46 +132,65 @@ function CategoryStep({ onSelect }) {
 
 // ── 附近搜尋區段 ─────────────────────────────
 const NEARBY_TYPES = [
-  { id: 'restaurant',         label: '餐廳',   icon: '🍜' },
-  { id: 'tourist_attraction', label: '景點',   icon: '🏛️' },
-  { id: 'parking',            label: '停車場', icon: '🅿️' },
+  { id: 'restaurant',         labelKey: 'addCard.nearby.type.restaurant',    IconComp: UtensilsCrossed },
+  { id: 'tourist_attraction', labelKey: 'addCard.nearby.type.attraction',    IconComp: Landmark },
+  { id: 'lodging',            labelKey: 'addCard.nearby.type.accommodation', IconComp: BedDouble },
+  { id: 'parking',            labelKey: 'addCard.nearby.type.parking',       IconComp: SquareParking },
 ]
 
-function NearbySearchSection({ lat, lng, pendingNearby, onAddNearby, onClearNearby }) {
+const CATEGORY_EXCLUDE_TYPE = {
+  restaurant:    'restaurant',
+  attraction:    'tourist_attraction',
+  accommodation: 'lodging',
+}
+
+function NearbySearchSection({ lat, lng, pendingNearby, onAddNearby, onClearNearby, defaultSearchType, excludeType }) {
+  const { t } = useLanguage()
   const [activeType, setActiveType] = useState(null)
   const [results, setResults]       = useState([])
   const [loading, setLoading]       = useState(false)
   const [searchErr, setSearchErr]   = useState('')
+  const [showAll, setShowAll]       = useState(false)
 
-  const handleSearch = async (typeId) => {
-    if (activeType === typeId) { setActiveType(null); setResults([]); return }
-    setActiveType(typeId); setResults([]); setLoading(true); setSearchErr('')
+  const runSearch = useCallback(async (typeId) => {
+    setActiveType(typeId); setResults([]); setLoading(true); setSearchErr(''); setShowAll(false)
     try {
       await loadGoogleMaps()
-      const places = await nearbySearch(lat, lng, typeId)
+      const places = await nearbySearch(lat, lng, typeId, 500, 15)
       setResults(places)
     } catch (e) {
-      setSearchErr('搜尋失敗：' + e.message)
+      setSearchErr(t('addCard.nearby.searchError', { message: e.message }))
     } finally { setLoading(false) }
+  }, [lat, lng, t])
+
+  useEffect(() => {
+    if (defaultSearchType) runSearch(defaultSearchType)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSearch = (typeId) => {
+    if (activeType === typeId) { setActiveType(null); setResults([]); setShowAll(false); return }
+    runSearch(typeId)
   }
+
+  const displayResults = showAll ? results : results.slice(0, 5)
 
   return (
     <div style={{ borderRadius: 14, border: '1.5px solid rgba(15,118,110,0.28)', overflow: 'hidden' }}>
       <div style={{ padding: '10px 14px', background: 'rgba(15,118,110,0.06)', borderBottom: '1px solid rgba(15,118,110,0.15)' }}>
         <div style={{ fontSize: 10, fontWeight: 900, color: '#0F766E', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 9 }}>
-          🔍 搜尋附近
+          {t('addCard.nearby.searchTitle')}
         </div>
         <div style={{ display: 'flex', gap: 7 }}>
-          {NEARBY_TYPES.map(t => (
-            <button key={t.id} type="button" onClick={() => handleSearch(t.id)} style={{
+          {NEARBY_TYPES.filter(nt => nt.id !== excludeType).map(nt => (
+            <button key={nt.id} type="button" onClick={() => handleSearch(nt.id)} style={{
               flex: 1, padding: '8px 4px', borderRadius: 10, fontSize: 11, fontWeight: 900,
-              border: `1.5px solid ${activeType === t.id ? '#0F766E' : 'rgba(15,118,110,0.22)'}`,
-              background: activeType === t.id ? 'rgba(15,118,110,0.14)' : 'rgba(255,252,244,0.70)',
-              color: activeType === t.id ? '#0F766E' : 'var(--text-secondary)',
+              border: `1.5px solid ${activeType === nt.id ? '#0F766E' : 'rgba(15,118,110,0.22)'}`,
+              background: activeType === nt.id ? 'rgba(15,118,110,0.14)' : 'rgba(255,252,244,0.70)',
+              color: activeType === nt.id ? '#0F766E' : 'var(--text-secondary)',
               cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
             }}>
-              <span style={{ fontSize: 16 }}>{t.icon}</span>
-              <span>{t.label}</span>
+              <nt.IconComp size={16} color="var(--text-primary)" />
+              <span>{t(nt.labelKey)}</span>
             </button>
           ))}
         </div>
@@ -169,57 +198,72 @@ function NearbySearchSection({ lat, lng, pendingNearby, onAddNearby, onClearNear
 
       {loading && (
         <div style={{ padding: '14px', textAlign: 'center', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>
-          搜尋中…
+          {t('addCard.nearby.searching')}
         </div>
       )}
       {searchErr && (
-        <div style={{ padding: '10px 14px', fontSize: 12, fontWeight: 800, color: '#DC2626' }}>
-          ⚠️ {searchErr}
+        <div style={{ padding: '10px 14px', fontSize: 12, fontWeight: 800, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <AlertTriangle size={13} /> {searchErr}
         </div>
       )}
       {results.length > 0 && !loading && (
-        <div style={{ maxHeight: 210, overflowY: 'auto' }}>
-          {results.map(place => (
-            <div key={place.placeId} style={{
-              padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
-              borderBottom: '1px solid rgba(165,125,65,0.10)',
-              background: pendingNearby?.place.placeId === place.placeId ? 'rgba(15,118,110,0.06)' : 'transparent',
+        <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+          {displayResults.map(place => {
+            const isSelected = pendingNearby?.place.placeId === place.placeId
+            return (
+              <div key={place.placeId} style={{
+                padding: '10px 14px',
+                borderBottom: '1px solid rgba(165,125,65,0.10)',
+                background: isSelected ? 'rgba(15,118,110,0.06)' : 'transparent',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  {place.photo
+                    ? <img src={place.photo} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                    : <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(165,125,65,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📍</div>
+                  }
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-primary)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.name}</div>
+                    {place.rating && (
+                      <div style={{ fontSize: 10, fontWeight: 800, color: '#D97706' }}>★ {place.rating.toFixed(1)}</div>
+                    )}
+                    <div style={{ display: 'flex', gap: 5, marginTop: 5 }}>
+                      {['before', 'after'].map(pos => {
+                        const isActive = isSelected && pendingNearby?.position === pos
+                        return (
+                          <button key={pos} type="button"
+                            onClick={() => isActive ? onClearNearby() : onAddNearby(place, pos)}
+                            style={{
+                              padding: '3px 9px', borderRadius: 7, fontSize: 10, fontWeight: 900, cursor: 'pointer',
+                              background: isActive ? 'rgba(15,118,110,0.18)' : 'rgba(165,125,65,0.10)',
+                              border: `1.5px solid ${isActive ? '#0F766E' : 'rgba(165,125,65,0.25)'}`,
+                              color: isActive ? '#0F766E' : 'var(--text-secondary)',
+                            }}>
+                            {t(pos === 'before' ? 'addCard.nearby.addBefore' : 'addCard.nearby.addAfter')}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+          {!showAll && results.length > 5 && (
+            <button type="button" onClick={() => setShowAll(true)} style={{
+              width: '100%', padding: '10px 14px', fontSize: 11, fontWeight: 900,
+              background: 'rgba(15,118,110,0.06)', border: 'none',
+              borderTop: '1px solid rgba(15,118,110,0.15)',
+              color: '#0F766E', cursor: 'pointer', textAlign: 'center',
             }}>
-              {place.photo
-                ? <img src={place.photo} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                : <div style={{ width: 40, height: 40, borderRadius: 8, background: 'rgba(165,125,65,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📍</div>
-              }
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-primary)',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.name}</div>
-                {place.rating && (
-                  <div style={{ fontSize: 10, fontWeight: 800, color: '#D97706' }}>★ {place.rating.toFixed(1)}</div>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                {['before', 'after'].map(pos => {
-                  const isActive = pendingNearby?.place.placeId === place.placeId && pendingNearby?.position === pos
-                  return (
-                    <button key={pos} type="button"
-                      onClick={() => isActive ? onClearNearby() : onAddNearby(place, pos)}
-                      style={{
-                        padding: '4px 8px', borderRadius: 7, fontSize: 10, fontWeight: 900, cursor: 'pointer',
-                        background: isActive ? 'rgba(15,118,110,0.18)' : 'rgba(165,125,65,0.10)',
-                        border: `1.5px solid ${isActive ? '#0F766E' : 'rgba(165,125,65,0.25)'}`,
-                        color: isActive ? '#0F766E' : 'var(--text-secondary)',
-                      }}>
-                      {pos === 'before' ? '↑ 前' : '↓ 後'}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+              {t('addCard.nearby.showMore', { count: results.length - 5 })}
+            </button>
+          )}
         </div>
       )}
       {results.length === 0 && !loading && activeType && !searchErr && (
         <div style={{ padding: '12px 14px', textAlign: 'center', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>
-          附近沒有找到相關地點
+          {t('addCard.nearby.empty')}
         </div>
       )}
       {pendingNearby && (
@@ -229,13 +273,13 @@ function NearbySearchSection({ lat, lng, pendingNearby, onAddNearby, onClearNear
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
           <span style={{ fontSize: 11, fontWeight: 900, color: '#0F766E', flex: 1 }}>
-            ✅ 將在{pendingNearby.position === 'before' ? '之前' : '之後'}新增「{pendingNearby.place.name}」
+            {t(pendingNearby.position === 'before' ? 'addCard.nearby.pendingBefore' : 'addCard.nearby.pendingAfter', { name: pendingNearby.place.name })}
           </span>
           <button type="button" onClick={onClearNearby} style={{
             padding: '3px 9px', borderRadius: 7, fontSize: 10, fontWeight: 900,
             background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.22)',
             color: '#DC2626', cursor: 'pointer',
-          }}>取消</button>
+          }}>{t('common.cancel')}</button>
         </div>
       )}
     </div>
@@ -243,13 +287,20 @@ function NearbySearchSection({ lat, lng, pendingNearby, onAddNearby, onClearNear
 }
 
 // ── 步驟二：填詳細資料 ──────────────────────
-function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, onSubmit, onBack }) {
+function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, existingCards, onSubmit, onBack }) {
+  const { t } = useLanguage()
   const cfg = CATEGORY[category]
   const isEdit = !!editCard
-  const [uploading, setUploading]           = useState(false)
-  const [pendingNearby, setPendingNearby]   = useState(null)
-  const fileInputRef  = useRef(null)
-  const noteTextareaRef = useRef(null)
+  const isPlaceCategory = PLACE_CATEGORIES.has(category)
+  const [uploading, setUploading]                   = useState(false)
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
+  const [pendingNearby, setPendingNearby]             = useState(null)
+  const [editingTitle, setEditingTitle]               = useState(isEdit)
+  const [overlapError, setOverlapError]               = useState('')
+  const [uploadError, setUploadError]               = useState('')
+  const fileInputRef       = useRef(null)
+  const attachmentInputRef = useRef(null)
+  const noteTextareaRef    = useRef(null)
 
   const [form, setForm] = useState(isEdit ? {
     title: editCard.title ?? '',
@@ -266,6 +317,7 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, onSu
     notes: editCard.notes ?? '',
     content: editCard.content ?? '',
     images: editCard.images ?? [],
+    attachments: editCard.attachments ?? [],
   } : {
     title: '',
     startTime: defaultTime || '09:00',
@@ -277,6 +329,7 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, onSu
     notes: '',
     content: '',
     images: [],
+    attachments: [],
   })
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
@@ -291,35 +344,116 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, onSu
       const totalNewMB = compressed.reduce((s, f) => s + f.size, 0) / (1024 * 1024)
 
       if (usedMB + totalNewMB > TRIP_LIMIT_MB) {
-        alert(`已超過旅遊計畫儲存上限 ${TRIP_LIMIT_MB}MB（目前使用 ${usedMB.toFixed(1)}MB）`)
+        setUploadError(t('addCard.storage.limit', { limit: TRIP_LIMIT_MB, used: usedMB.toFixed(1) }))
         return
       }
+
+      const timeout = (ms, msg) => new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))
 
       const urls = await Promise.all(compressed.map(async file => {
         const path = `trips/${tripId}/images/${Date.now()}_${file.name}`
         const fRef = storageRef(storage, path)
-        await uploadBytes(fRef, file)
+        await Promise.race([uploadBytes(fRef, file), timeout(30000, t('addCard.upload.timeout'))])
         return getDownloadURL(fRef)
       }))
 
       const totalBytes = compressed.reduce((s, f) => s + f.size, 0)
       await addStorageUsedBytes(tripId, totalBytes)
       set('images', [...form.images, ...urls])
+      setUploadError('')
     } catch (err) {
-      alert('上傳失敗：' + err.message)
+      setUploadError(t('addCard.upload.error', { message: err.message }))
     } finally {
       setUploading(false)
       e.target.value = ''
     }
   }
 
-  const removeImage = (idx) => set('images', form.images.filter((_, i) => i !== idx))
+  const removeImage = (idx) => {
+    const url = form.images[idx]
+    set('images', form.images.filter((_, i) => i !== idx))
+    if (url) {
+      try {
+        const encoded = new URL(url).pathname.split('/o/')[1]
+        if (encoded) deleteObject(storageRef(storage, decodeURIComponent(encoded.split('?')[0]))).catch(() => {})
+      } catch (_) {}
+    }
+  }
+
+  const handleAttachmentPick = async (e) => {
+    const rawFiles = Array.from(e.target.files).slice(0, 5 - form.attachments.length)
+    if (!rawFiles.length || !tripId) return
+    const FILE_LIMIT_MB = 3
+    const oversized = rawFiles.find(f => f.size > FILE_LIMIT_MB * 1024 * 1024)
+    if (oversized) {
+      setUploadError(t('addCard.attachment.oversized', {
+        name: oversized.name,
+        limit: FILE_LIMIT_MB,
+        size: (oversized.size / 1024 / 1024).toFixed(1),
+      }))
+      e.target.value = ''
+      return
+    }
+    setUploadingAttachment(true)
+    try {
+      const usedMB = await getStorageUsedMB(tripId)
+      const totalNewMB = rawFiles.reduce((s, f) => s + f.size, 0) / (1024 * 1024)
+      if (usedMB + totalNewMB > TRIP_LIMIT_MB) {
+        setUploadError(t('addCard.storage.limit', { limit: TRIP_LIMIT_MB, used: usedMB.toFixed(1) }))
+        return
+      }
+      const attachTimeout = (ms, msg) => new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))
+      const newAttachments = await Promise.all(rawFiles.map(async (file) => {
+        const path = `trips/${tripId}/files/${Date.now()}_${file.name}`
+        const fRef = storageRef(storage, path)
+        await Promise.race([uploadBytes(fRef, file), attachTimeout(30000, t('addCard.upload.timeout'))])
+        const url = await getDownloadURL(fRef)
+        return { url, name: file.name, type: file.type || 'application/octet-stream', size: file.size }
+      }))
+      const totalBytes = rawFiles.reduce((s, f) => s + f.size, 0)
+      await addStorageUsedBytes(tripId, totalBytes)
+      set('attachments', [...form.attachments, ...newAttachments])
+      setUploadError('')
+    } catch (err) {
+      setUploadError(t('addCard.upload.error', { message: err.message }))
+    } finally {
+      setUploadingAttachment(false)
+      e.target.value = ''
+    }
+  }
+
+  const removeAttachment = async (idx) => {
+    const att = form.attachments[idx]
+    if (att?.url) {
+      try {
+        const encoded = new URL(att.url).pathname.split('/o/')[1]
+        if (encoded) await deleteObject(storageRef(storage, decodeURIComponent(encoded.split('?')[0])))
+      } catch (_) {}
+    }
+    set('attachments', form.attachments.filter((_, i) => i !== idx))
+  }
 
   const handleNoteContentChange = useCallback((val) => set('content', val), [])
 
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!form.title.trim()) return
+
+    const day = editCard?.day ?? defaultDay
+    const newStart = tToMin(form.startTime)
+    const newEnd = newStart + form.duration
+    const overlap = (existingCards ?? []).find(c =>
+      c.day === day &&
+      (!editCard || c.id !== editCard.id) &&
+      tToMin(c.startTime) < newEnd &&
+      tToMin(c.startTime) + c.duration > newStart
+    )
+    if (overlap) {
+      setOverlapError(t('addCard.overlap.error', { title: overlap.title, time: overlap.startTime }))
+      return
+    }
+
+    setOverlapError('')
     onSubmit({ ...form, type: category, pendingNearby })
   }
 
@@ -343,77 +477,87 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, onSu
           <ArrowLeft size={17} />
         </button>
         <span style={{ fontSize: 21, display: 'flex', alignItems: 'center' }}>
-          {cfg.IconComp ? <cfg.IconComp size={22} weight="fill" color={cfg.color} /> : cfg.icon}
+          {cfg.IconComp ? <cfg.IconComp size={22} weight="regular" color="var(--text-primary)" /> : cfg.icon}
         </span>
         <h2 style={{ fontSize: 19, fontWeight: 900, color: cfg.color }}>
-          {isEdit ? '編輯' : '新增'}{cfg.label}
+          {t(isEdit ? 'common.edit' : 'common.add')} {t('category.' + category)}
         </h2>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {/* 名稱 */}
-        <Field label="名稱 / 標題">
-          <input
-            className="game-input"
-            type="text"
-            placeholder={
-              category === 'attraction' ? '例：嵐山竹林' :
-              category === 'transport'  ? '例：機場快線' :
-              category === 'expense'    ? '例：午餐' : '例：行前備忘'
-            }
-            value={form.title}
-            onChange={e => set('title', e.target.value)}
-            required
-            autoFocus
-          />
-        </Field>
+        {/* 名稱：非地點類別顯示文字輸入欄 */}
+        {(!isPlaceCategory || isEdit) && (
+          <Field label={t('addCard.field.nameTitle')}>
+            <input
+              className="game-input"
+              type="text"
+              placeholder={
+                category === 'transport' ? t('addCard.placeholder.transport') :
+                t('addCard.placeholder.note')
+              }
+              value={form.title}
+              onChange={e => set('title', e.target.value)}
+              required={!isPlaceCategory}
+              autoFocus={!isPlaceCategory}
+            />
+          </Field>
+        )}
 
         {/* 時間 + 時長 */}
         <div style={{ display: 'flex', gap: 12 }}>
-          <Field label="開始時間">
+          <Field label={t('addCard.field.startTime')}>
             <input
               className="game-input"
               type="time"
               value={form.startTime}
-              onChange={e => set('startTime', e.target.value)}
+              onChange={e => { set('startTime', e.target.value); setOverlapError('') }}
               style={{ minWidth: 0 }}
             />
           </Field>
-          <Field label="時長">
+          <Field label={t('addCard.field.tripDuration')}>
             <select
               className="game-input"
               value={form.duration}
-              onChange={e => set('duration', Number(e.target.value))}
+              onChange={e => { set('duration', Number(e.target.value)); setOverlapError('') }}
               style={{ minWidth: 0 }}
             >
-              {DURATIONS.map(d => (
-                <option key={d.value} value={d.value}>{d.label}</option>
+              {DURATION_VALUES.map(v => (
+                <option key={v} value={v}>{getDurationLabel(v, t)}</option>
               ))}
             </select>
           </Field>
         </div>
+        {overlapError && (
+          <div style={{
+            padding: '9px 13px', borderRadius: 10,
+            background: 'rgba(220,38,38,0.08)', border: '1.5px solid rgba(220,38,38,0.30)',
+            fontSize: 12, fontWeight: 900, color: '#DC2626',
+          }}>
+            ⚠️ {overlapError}
+          </div>
+        )}
 
         {/* ── 交通專屬 ── */}
         {category === 'transport' && <>
           <div style={{ display: 'flex', gap: 12 }}>
-            <Field label="出發地">
+            <Field label={t('addCard.field.from')}>
               <PlaceSearch
                 value={form.from}
                 onChange={v => set('from', v)}
                 onSelect={p => set('from', p.name)}
-                placeholder="出發地點…"
+                placeholder={t('addCard.placeholder.from')}
               />
             </Field>
-            <Field label="目的地">
+            <Field label={t('addCard.field.to')}>
               <PlaceSearch
                 value={form.to}
                 onChange={v => set('to', v)}
                 onSelect={p => set('to', p.name)}
-                placeholder="目的地點…"
+                placeholder={t('addCard.placeholder.to')}
               />
             </Field>
           </div>
-          <Field label="交通方式">
+          <Field label={t('addCard.field.mode')}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {TRANSPORT_MODES.map(m => (
                 <button
@@ -430,137 +574,155 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, onSu
                     display: 'flex', alignItems: 'center', gap: 5,
                   }}
                 >
-                  {m.icon} {m.label}
+                  {m.IconComp
+                    ? <m.IconComp size={14} weight="regular" color="var(--text-primary)" />
+                    : null} {t(m.labelKey)}
                 </button>
               ))}
             </div>
           </Field>
         </>}
 
-        {/* ── 景點專屬 ── */}
-        {category === 'attraction' && (
-          <Field label="搜尋景點 / 地址">
-            <div style={{ position: 'relative' }}>
-              <PlaceSearch
-                value={form.address}
-                onChange={v => set('address', v)}
-                onSelect={p => {
-                  if (!form.title.trim()) set('title', p.name)
-                  set('address', p.address)
-                  set('lat', p.lat)
-                  set('lng', p.lng)
-                  set('placeId', p.placeId)
-                  set('weekdayText', p.weekdayText ?? null)
-                  set('rating', p.rating ?? null)
-                  set('photo', p.photo ?? null)
-                }}
-                placeholder="例：嵐山竹林、故宮博物院…"
-              />
-            </div>
-            {form.lat && (
-              <div style={{
-                marginTop: 7, display: 'flex', alignItems: 'center', gap: 7,
-                padding: '7px 11px', borderRadius: 9,
-                background: 'rgba(15,118,110,0.08)', border: '1px solid rgba(15,118,110,0.25)',
-              }}>
-                <span style={{ fontSize: 13 }}>✅</span>
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#0F766E' }}>
-                  已取得精確座標，導航功能可用
-                </span>
+        {/* ── 景點 / 餐廳 / 住宿 專屬 ── */}
+        {isPlaceCategory && (
+          <Field label={t('addCard.place.search.' + category) ?? t('addCard.place.search.default')}>
+            <PlaceSearch
+              value={form.address}
+              onChange={v => set('address', v)}
+              onSelect={p => {
+                set('title', p.name)
+                set('address', p.address)
+                set('lat', p.lat)
+                set('lng', p.lng)
+                set('placeId', p.placeId)
+                set('weekdayText', p.weekdayText ?? null)
+                set('rating', p.rating ?? null)
+                set('photo', p.photo ?? null)
+                setEditingTitle(false)
+              }}
+              placeholder={
+                category === 'restaurant'    ? t('addCard.placeholder.restaurant') :
+                category === 'accommodation' ? t('addCard.placeholder.accommodation') :
+                t('addCard.placeholder.attraction')
+              }
+              autoFocus={isPlaceCategory && !isEdit}
+            />
+            {/* 名稱顯示 / 編輯（新增模式） */}
+            {!isEdit && (
+              <div style={{ marginTop: 7 }}>
+                {form.title ? (
+                  editingTitle ? (
+                    <input
+                      className="game-input"
+                      value={form.title}
+                      onChange={e => set('title', e.target.value)}
+                      onBlur={() => setEditingTitle(false)}
+                      autoFocus
+                      style={{ padding: '9px 14px', fontSize: 14 }}
+                    />
+                  ) : (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '8px 12px', borderRadius: 10,
+                      background: 'rgba(165,125,65,0.08)', border: '1px solid rgba(165,125,65,0.22)',
+                    }}>
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 900, color: 'var(--text-primary)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {form.title}
+                      </span>
+                      <button type="button" onClick={() => setEditingTitle(true)} style={{
+                        flexShrink: 0, padding: '3px 10px', borderRadius: 7,
+                        fontSize: 11, fontWeight: 900, cursor: 'pointer',
+                        background: 'rgba(165,125,65,0.12)', border: '1px solid rgba(165,125,65,0.30)',
+                        color: 'var(--text-secondary)',
+                      }}>
+                        {t('addCard.editName')}
+                      </button>
+                    </div>
+                  )
+                ) : (
+                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textAlign: 'center', padding: '4px 0' }}>
+                    {t('addCard.autoFillHint')}
+                  </div>
+                )}
               </div>
             )}
           </Field>
         )}
 
-        {/* ── 開銷專屬 ── */}
-        {category === 'expense' && (<>
-          <Field label="類別">
-            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-              {EXPENSE_CATEGORIES.map(cat => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => set('expenseCategory', cat.id)}
-                  style={{
-                    padding: '7px 12px', borderRadius: 10, fontSize: 12, fontWeight: 800,
-                    border: `1.5px solid ${form.expenseCategory === cat.id ? '#92400E' : 'rgba(165,125,65,0.25)'}`,
-                    background: form.expenseCategory === cat.id ? 'rgba(146,64,14,0.12)' : 'rgba(255,250,238,0.70)',
-                    color: form.expenseCategory === cat.id ? '#92400E' : 'var(--text-secondary)',
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                  }}
-                >
-                  {cat.icon} {cat.label}
-                </button>
-              ))}
-            </div>
-          </Field>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <Field label="金額">
-              <input
-                className="game-input"
-                type="number"
-                placeholder="0"
-                min="0"
-                value={form.amount}
-                onChange={e => set('amount', e.target.value)}
-              />
-            </Field>
-            <Field label="幣別">
-              <select
-                className="game-input"
-                value={form.currency}
-                onChange={e => set('currency', e.target.value)}
-              >
-                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </Field>
-          </div>
-          <Field label="備注（選填）">
-            <input
-              className="game-input"
-              type="text"
-              placeholder="例：已含服務費、刷卡優惠…"
-              value={form.notes}
-              onChange={e => set('notes', e.target.value)}
-            />
-          </Field>
-        </>)}
 
-        {/* ── 筆記專屬：內容 ── */}
-        {category === 'note' && (
-          <Field label="筆記內容">
-            <div style={{ borderRadius: 14, border: '1.5px solid rgba(165,125,65,0.28)', overflow: 'hidden' }}>
-              <FormatToolbar
-                textareaRef={noteTextareaRef}
-                content={form.content}
-                onChange={handleNoteContentChange}
-              />
-              <textarea
-                ref={noteTextareaRef}
-                className="game-input"
-                placeholder="記下任何想法、提醒或備注…"
-                value={form.content}
-                onChange={e => set('content', e.target.value)}
-                rows={5}
-                style={{ resize: 'vertical', lineHeight: 1.6, borderRadius: '0 0 12px 12px', border: 'none' }}
-              />
-            </div>
-          </Field>
-        )}
-
-        {/* ── 景點附近搜尋 ── */}
-        {category === 'attraction' && !isEdit && form.lat && (
+        {/* ── 附近搜尋（景點 / 餐廳 / 住宿） ── */}
+        {isPlaceCategory && !isEdit && form.lat && (
           <NearbySearchSection
             lat={form.lat}
             lng={form.lng}
             pendingNearby={pendingNearby}
             onAddNearby={(place, position) => setPendingNearby({ place, position })}
             onClearNearby={() => setPendingNearby(null)}
+            defaultSearchType={
+              category === 'restaurant' ? 'restaurant' :
+              category === 'accommodation' ? 'lodging' : null
+            }
+            excludeType={CATEGORY_EXCLUDE_TYPE[category] ?? null}
           />
         )}
 
+        {/* ── 開銷專屬欄位 ── */}
+        {category === 'expense' && (
+          <>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <Field label={t('addCard.field.amount')}>
+                <input
+                  className="game-input"
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="0"
+                  min="0"
+                  step="any"
+                  value={form.amount}
+                  onChange={e => set('amount', e.target.value)}
+                  style={{ minWidth: 0 }}
+                />
+              </Field>
+              <Field label={t('addCard.field.currency')}>
+                <select
+                  className="game-input"
+                  value={form.currency}
+                  onChange={e => set('currency', e.target.value)}
+                  style={{ minWidth: 0 }}
+                >
+                  {CURRENCIES.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <Field label={t('addCard.field.expenseCategory')}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {EXPENSE_CATEGORIES.map(cat => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => set('expenseCategory', cat.id)}
+                    style={{
+                      padding: '7px 12px', borderRadius: 10, cursor: 'pointer',
+                      border: `1.5px solid ${form.expenseCategory === cat.id ? '#D97706' : 'rgba(165,125,65,0.25)'}`,
+                      background: form.expenseCategory === cat.id ? 'rgba(217,119,6,0.10)' : 'rgba(255,250,238,0.70)',
+                      color: form.expenseCategory === cat.id ? '#D97706' : 'var(--text-secondary)',
+                      fontSize: 12, fontWeight: 800,
+                      display: 'flex', alignItems: 'center', gap: 5,
+                    }}
+                  >
+                    {cat.icon} {t(cat.labelKey)}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          </>
+        )}
+
         {/* ── 所有類別：附加圖片 ── */}
-        <Field label={`附加圖片（選填，最多 6 張）`}>
+        <Field label={t('addCard.image.label')}>
           {form.images.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 9 }}>
               {form.images.map((url, i) => (
@@ -609,12 +771,89 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, onSu
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
             }}
           >
-            {uploading ? '⏳ 壓縮上傳中…' : form.images.length >= 6 ? '已達上限 6 張' : '🖼️ 選擇圖片'}
+            {uploading
+              ? t('addCard.image.compressing')
+              : form.images.length >= 6
+                ? t('addCard.image.limitReached')
+                : t('addCard.image.select')}
           </button>
           <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginTop: 5 }}>
-            自動壓縮，單張限 {IMAGE_LIMIT_MB}MB，旅遊計畫總上限 {TRIP_LIMIT_MB}MB
+            {t('addCard.image.limitNote', { imgLimit: IMAGE_LIMIT_MB, tripLimit: TRIP_LIMIT_MB })}
           </p>
         </Field>
+
+        {/* ── 附件（PDF / 文字）── */}
+        <Field label={t('addCard.attachment.label')}>
+          {form.attachments.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 9 }}>
+              {form.attachments.map((att, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 9,
+                  padding: '8px 12px', borderRadius: 10,
+                  background: 'rgba(165,125,65,0.08)', border: '1px solid rgba(165,125,65,0.22)',
+                }}>
+                  <span style={{ flexShrink: 0, color: 'var(--text-muted)', display: 'flex' }}>
+                    {att.type === 'application/pdf' ? <FileText size={18} /> : <Pencil size={18} />}
+                  </span>
+                  <span style={{ flex: 1, fontSize: 12, fontWeight: 900, color: 'var(--text-primary)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {att.name}
+                  </span>
+                  <button type="button" onClick={() => window.open(att.url, '_blank')} style={{
+                    flexShrink: 0, padding: '3px 9px', borderRadius: 7,
+                    fontSize: 11, fontWeight: 900, cursor: 'pointer',
+                    background: 'rgba(15,118,110,0.10)', border: '1px solid rgba(15,118,110,0.25)',
+                    color: '#0F766E',
+                  }}>{t('addCard.attachment.view')}</button>
+                  <button type="button" onClick={() => removeAttachment(i)} style={{
+                    flexShrink: 0, width: 18, height: 18, borderRadius: '50%',
+                    background: '#DC2626', border: '2px solid #FAF6ED',
+                    color: '#fff', fontSize: 9, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 900,
+                  }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <input
+            ref={attachmentInputRef}
+            type="file"
+            accept="application/pdf,text/plain,text/csv,text/markdown,.md"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handleAttachmentPick}
+          />
+          <button
+            type="button"
+            onClick={() => !uploadingAttachment && form.attachments.length < 5 && attachmentInputRef.current?.click()}
+            disabled={uploadingAttachment || form.attachments.length >= 5}
+            style={{
+              width: '100%', padding: '11px', borderRadius: 12,
+              border: '1.5px dashed rgba(165,125,65,0.38)',
+              background: 'rgba(255,250,238,0.60)',
+              color: uploadingAttachment || form.attachments.length >= 5 ? 'var(--text-muted)' : 'var(--accent)',
+              fontSize: 12, fontWeight: 900,
+              cursor: uploadingAttachment || form.attachments.length >= 5 ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+            }}
+          >
+            {uploadingAttachment
+              ? t('addCard.image.uploading')
+              : form.attachments.length >= 5
+                ? t('addCard.attachment.limit')
+                : t('addCard.attachment.select')}
+          </button>
+        </Field>
+
+        {/* 上傳錯誤 */}
+        {uploadError && (
+          <div style={{ padding: '9px 13px', borderRadius: 10,
+            background: 'rgba(220,38,38,0.08)', border: '1.5px solid rgba(220,38,38,0.30)',
+            fontSize: 12, fontWeight: 900, color: '#DC2626' }}>
+            ⚠️ {uploadError}
+          </div>
+        )}
 
         {/* 提交 */}
         <button
@@ -623,13 +862,7 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, onSu
           style={{ width: '100%', fontSize: 15, padding: '15px', marginTop: 2 }}
         >
           <CircleCheck size={17} style={{ marginRight: 7 }} />
-          {isEdit
-            ? '儲存修改'
-            : category === 'note'
-            ? '新增筆記'
-            : category === 'expense'
-            ? '新增消費紀錄'
-            : '加入行程'}
+          {t(isEdit ? 'addCard.submit.edit' : 'addCard.submit.addTrip')}
         </button>
       </div>
     </form>
@@ -637,7 +870,7 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, onSu
 }
 
 // ── 主 Modal ────────────────────────────────
-export default function AddCardModal({ defaultDay, defaultTime, onAdd, onEdit, onClose, editCard, tripId }) {
+export default function AddCardModal({ defaultDay, defaultTime, onAdd, onEdit, onClose, editCard, tripId, existingCards = [] }) {
   const [category, setCategory] = useState(editCard?.type ?? null)
   const isEdit = !!editCard
 
@@ -653,6 +886,7 @@ export default function AddCardModal({ defaultDay, defaultTime, onAdd, onEdit, o
 
   return (
     <div
+      className="modal-overlay"
       style={{
         position: 'fixed', inset: 0, zIndex: 350,
         background: 'rgba(120,80,20,0.28)',
@@ -662,7 +896,7 @@ export default function AddCardModal({ defaultDay, defaultTime, onAdd, onEdit, o
       onClick={onClose}
     >
       <div
-        className="glass-card-glow"
+        className="glass-card-glow modal-sheet"
         style={{ width: '100%', maxWidth: 480, padding: 'clamp(20px, 5vw, 32px) clamp(16px, 5vw, 28px)', maxHeight: '92vh', overflowY: 'auto' }}
         onClick={e => e.stopPropagation()}
       >
@@ -674,6 +908,7 @@ export default function AddCardModal({ defaultDay, defaultTime, onAdd, onEdit, o
               defaultTime={defaultTime}
               editCard={isEdit ? editCard : null}
               tripId={tripId}
+              existingCards={existingCards}
               onSubmit={handleSubmit}
               onBack={isEdit ? onClose : () => setCategory(null)}
             />

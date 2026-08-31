@@ -4,7 +4,6 @@ import {
   arrayUnion, arrayRemove, increment, getDocs, where, runTransaction,
 } from 'firebase/firestore'
 import { db } from './firebase'
-import { hashPassword, verifyPassword } from '../utils/crypto'
 
 // 產生 6 碼易讀邀請碼（去掉 0/O/1/I 避免混淆）
 function generateTripCode() {
@@ -27,7 +26,26 @@ export async function createUserProfile(user) {
       tripCodes: [],
       createdAt: serverTimestamp(),
     })
+    return { isNew: true }
   }
+  return { isNew: false }
+}
+
+export async function deleteUserProfile(uid) {
+  try { await deleteDoc(doc(db, 'users', uid)) } catch {}
+}
+
+// 清除使用者遺留的教學用計畫（登入時自動執行）
+export async function cleanupDemoTrips(uid) {
+  try {
+    const q = query(
+      collection(db, 'trips'),
+      where('ownerId', '==', uid),
+      where('isDemoTrip', '==', true)
+    )
+    const snap = await getDocs(q)
+    await Promise.all(snap.docs.map(d => deleteDemoTrip(d.id)))
+  } catch {}
 }
 
 export async function getUserTrips(uid) {
@@ -37,7 +55,7 @@ export async function getUserTrips(uid) {
 }
 
 // 建立新旅遊計畫
-export async function createTrip({ name, startDate, endDate, password, uid }) {
+export async function createTrip({ name, startDate, endDate, uid }) {
   let code
   let exists = true
 
@@ -47,14 +65,10 @@ export async function createTrip({ name, startDate, endDate, password, uid }) {
     exists = snap.exists()
   }
 
-  const passwordHash = await hashPassword(password)
-
   await setDoc(doc(db, 'trips', code), {
     name,
     startDate,
     endDate,
-    passwordHash,
-    password,        // 儲存明文以便在邀請流程中顯示給計畫擁有者
     backgroundImage: null,
     createdAt: serverTimestamp(),
     ownerId: uid ?? null,
@@ -65,23 +79,37 @@ export async function createTrip({ name, startDate, endDate, password, uid }) {
     await updateDoc(doc(db, 'users', uid), { tripCodes: arrayUnion(code) })
   }
 
+  // 預設打包清單項目
+  const defaultPacking = [
+    { text: '護照',     category: '證件' },
+    { text: '機票',     category: '證件' },
+    { text: 'SIM卡/eSIM', category: '電子' },
+    { text: '行動電源', category: '電子' },
+    { text: '盥洗用具', category: '盥洗' },
+    { text: '吹風機',   category: '盥洗' },
+    { text: '保養品',   category: '盥洗' },
+    { text: '換洗衣物', category: '服裝' },
+  ]
+  await Promise.all(
+    defaultPacking.map(item =>
+      addDoc(collection(db, 'trips', code, 'packing'), {
+        ...item, checked: false, createdAt: serverTimestamp(),
+      })
+    )
+  )
+
   return code
 }
 
-// 加入旅遊計畫（驗證密碼）
-export async function joinTrip(code, password, uid) {
+// 加入旅遊計畫（僅需邀請代碼）
+export async function joinTrip(code, uid) {
   const snap = await getDoc(doc(db, 'trips', code.toUpperCase()))
 
   if (!snap.exists()) {
-    throw new Error('找不到這個旅遊計畫，請確認代碼是否正確')
+    throw new Error('找不到這個旅遊計畫，請確認邀請代碼是否正確')
   }
 
   const data = snap.data()
-  const ok = await verifyPassword(password, data.passwordHash)
-
-  if (!ok) {
-    throw new Error('密碼錯誤，請再試一次')
-  }
 
   if (uid) {
     await updateDoc(doc(db, 'trips', code.toUpperCase()), { members: arrayUnion(uid) })
@@ -166,15 +194,17 @@ export async function deleteTrip(tripId, uid) {
   const tripSnap = await getDoc(doc(db, 'trips', tripId))
   const members = tripSnap.exists() ? (tripSnap.data().members ?? []) : []
 
-  const [cardsSnap, todosSnap, packingSnap] = await Promise.all([
+  const [cardsSnap, todosSnap, packingSnap, expensesSnap] = await Promise.all([
     getDocs(cardsCol(tripId)),
     getDocs(todosCol(tripId)),
     getDocs(packingCol(tripId)),
+    getDocs(collection(db, 'trips', tripId, 'expenses')),
   ])
   await Promise.all([
     ...cardsSnap.docs.map(d => deleteDoc(d.ref)),
     ...todosSnap.docs.map(d => deleteDoc(d.ref)),
     ...packingSnap.docs.map(d => deleteDoc(d.ref)),
+    ...expensesSnap.docs.map(d => deleteDoc(d.ref)),
   ])
   await deleteDoc(doc(db, 'trips', tripId))
 
@@ -197,6 +227,97 @@ export async function leaveTrip(tripId, uid) {
   if (uid) {
     await updateDoc(doc(db, 'users', uid), { tripCodes: arrayRemove(tripId) })
   }
+}
+
+// ── 教學用模擬計畫 ───────────────────────────
+export async function createDemoTrip(uid) {
+  const today = new Date()
+  const dateStr = today.toISOString().split('T')[0]
+
+  let code
+  let exists = true
+  while (exists) {
+    code = generateTripCode()
+    const snap = await getDoc(doc(db, 'trips', code))
+    exists = snap.exists()
+  }
+
+  const meta = {
+    name: '✈️ 台北一日遊（教學範例）',
+    startDate: dateStr,
+    endDate: dateStr,
+    password: 'tutorial',
+    passwordHash: 'demo',
+    backgroundImage: null,
+    ownerId: uid,
+    members: [uid],
+    isDemoTrip: true,
+  }
+
+  await setDoc(doc(db, 'trips', code), { ...meta, createdAt: serverTimestamp() })
+
+  const cardsData = [
+    // 龍山寺在 08:00–08:30 → 拖曳教學的高亮卡片；08:30–10:30 留空作為拖曳目標
+    { type: 'attraction', title: '龍山寺', startTime: '08:00', duration: 30,
+      address: '台北市萬華區廣州街211號', lat: 25.0373, lng: 121.4999,
+      placeId: 'ChIJkUQFGj2rQjQRfqpbMd3jFwk' },
+    { type: 'transport', title: '機場快線 → 台北車站', startTime: '10:30', duration: 60,
+      from: '桃園國際機場', to: '台北車站', mode: 'transit',
+      address: '台北市中正區北平西路3號', lat: 25.0478, lng: 121.5170 },
+    { type: 'restaurant', title: '鼎泰豐（信義店）', startTime: '12:30', duration: 75,
+      address: '台北市信義區市府路45號B1', lat: 25.0406, lng: 121.5660,
+      placeId: 'ChIJQWW8kL-rQjQRivAyCQeQGOg' },
+    { type: 'attraction', title: '台北101 觀景台', startTime: '14:30', duration: 120,
+      address: '台北市信義區信義路五段7號', lat: 25.0339, lng: 121.5645,
+      placeId: 'ChIJSTECk_6rQjQRFSPeBIoAJmY' },
+    { type: 'attraction', title: '象山步道（夕陽打卡）', startTime: '17:00', duration: 90,
+      address: '台北市信義區信義路五段150巷', lat: 25.0253, lng: 121.5746 },
+    { type: 'accommodation', title: '台北晶華酒店 Check-in', startTime: '19:30', duration: 30,
+      address: '台北市中山區中山北路二段39之3號', lat: 25.0507, lng: 121.5314,
+      placeId: 'ChIJ2WcgMgqrQjQRl5iChFN-6OA' },
+    { type: 'expense', title: '今日交通 + 門票', startTime: '20:00', duration: 0,
+      amount: 850, currency: 'TWD', expenseCategory: 'transport' },
+  ]
+
+  const todosData = [
+    { title: '申請旅行保險', checked: false },
+    { title: '預約鼎泰豐（建議提前）', checked: true },
+    { title: '查詢台北101門票優惠', checked: false },
+  ]
+
+  const packingData = [
+    { title: '護照', category: '證件', checked: true },
+    { title: '悠遊卡 / 信用卡', category: '錢包', checked: false },
+    { title: '充電器 + 行動電源', category: '電子', checked: false },
+    { title: '防曬乳', category: '盥洗', checked: false },
+    { title: '舒適的步行鞋', category: '服裝', checked: true },
+  ]
+
+  await Promise.all([
+    ...cardsData.map(c => addDoc(collection(db, 'trips', code, 'cards'), { ...c, day: dateStr, createdAt: serverTimestamp() })),
+    ...todosData.map(t => addDoc(collection(db, 'trips', code, 'todos'), { ...t, createdAt: serverTimestamp() })),
+    ...packingData.map(p => addDoc(collection(db, 'trips', code, 'packing'), { ...p, createdAt: serverTimestamp() })),
+  ])
+
+  return { code, meta }
+}
+
+export async function deleteDemoTrip(tripId) {
+  try {
+    const [cardsSnap, todosSnap, packingSnap, expensesSnap] = await Promise.all([
+      getDocs(collection(db, 'trips', tripId, 'cards')),
+      getDocs(collection(db, 'trips', tripId, 'todos')),
+      getDocs(collection(db, 'trips', tripId, 'packing')),
+      getDocs(collection(db, 'trips', tripId, 'expenses')),
+    ])
+    await Promise.all([
+      ...cardsSnap.docs.map(d => deleteDoc(d.ref)),
+      ...todosSnap.docs.map(d => deleteDoc(d.ref)),
+      ...packingSnap.docs.map(d => deleteDoc(d.ref)),
+      ...expensesSnap.docs.map(d => deleteDoc(d.ref)),
+    ])
+    await deleteDoc(doc(db, 'trips', tripId))
+  } catch { /* already deleted or doesn't exist */ }
 }
 
 // 取得多位成員的 Profile
@@ -234,6 +355,16 @@ export async function attachNoteToCard(tripId, targetCardId, noteItem, sourceNot
   if (sourceNoteCardId) {
     await deleteDoc(doc(db, 'trips', tripId, 'cards', sourceNoteCardId))
   }
+}
+
+// 用 transaction 更新附加筆記，防止並發覆蓋
+export async function saveAttachedNotes(tripId, cardId, notes) {
+  const ref = doc(db, 'trips', tripId, 'cards', cardId)
+  await runTransaction(db, async tx => {
+    const snap = await tx.get(ref)
+    if (!snap.exists()) return
+    tx.update(ref, { attachedNotes: notes })
+  })
 }
 
 // ── 卡片附屬待辦（原子操作，避免並發覆蓋）（Bug #4）───────
@@ -298,4 +429,37 @@ export async function updateListItem(tripId, type, itemId, updates) {
 export async function deleteListItem(tripId, type, itemId) {
   const colName = type === 'packing' ? 'packing' : 'todos'
   await deleteDoc(doc(db, 'trips', tripId, colName, itemId))
+}
+
+// ── 獨立開銷 CRUD ─────────────────────────────
+function expensesCol(tripId) { return collection(db, 'trips', tripId, 'expenses') }
+
+export async function addExpense(tripId, data) {
+  const ref = await addDoc(expensesCol(tripId), { ...data, createdAt: serverTimestamp() })
+  return ref.id
+}
+
+export function subscribeToExpenses(tripId, callback, onError) {
+  const q = query(expensesCol(tripId), orderBy('createdAt', 'asc'))
+  return onSnapshot(q, snap => callback(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onError ?? (() => {}))
+}
+
+export async function deleteExpense(tripId, expenseId) {
+  await deleteDoc(doc(db, 'trips', tripId, 'expenses', expenseId))
+}
+
+export async function updateExpense(tripId, expenseId, updates) {
+  await updateDoc(doc(db, 'trips', tripId, 'expenses', expenseId), updates)
+}
+
+export async function submitFeedback({ tripId, tripName, userId, userEmail, message }) {
+  await addDoc(collection(db, 'feedback'), {
+    tripId: tripId || null,
+    tripName: tripName || '',
+    userId: userId || null,
+    userEmail: userEmail || '',
+    message,
+    status: 'new',
+    createdAt: serverTimestamp(),
+  })
 }
