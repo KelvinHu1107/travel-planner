@@ -459,9 +459,7 @@ button:not(.btn-game):not([disabled]):active {
 }
 
 /* ── FAB Safe Area Bottom ───────────────────── */
-.fab-safe {
-  bottom: max(24px, calc(24px + env(safe-area-inset-bottom, 0px))) !important;
-}
+.fab-safe {}
 
 /* ── Horizontal scroll hint on board ───────── */
 @media (max-width: 767px) {
