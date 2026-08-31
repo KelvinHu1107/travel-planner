@@ -839,7 +839,7 @@ function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExp
               background: cfg.bg, border: `2px solid ${cfg.border}`,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <cfg.IconComp size={18} weight="regular" color="var(--text-primary)" />
+                <cfg.IconComp size={18} weight="regular" color={cfg.color} />
                 <span style={{ fontSize: 14, fontWeight: 900, color: cfg.color }}>{cfg.label}</span>
               </div>
               <span style={{
@@ -1028,7 +1028,7 @@ function FloatingAddButton({ onAddCard, onAddExpense, bottom = 36, size = 68, ic
                 whiteSpace: 'nowrap',
               }}
             >
-              <item.IconComp size={17} color="var(--text-primary)" />
+              <item.IconComp size={17} color={item.shadow} />
               {item.label}
             </button>
           ))}
@@ -1110,7 +1110,7 @@ function ListView({ cards, trip, onCardClick, onDeleteCard }) {
                       <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', width: 46, flexShrink: 0 }}>
                         {card.startTime}
                       </span>
-                      <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><cfg.IconComp size={18} weight="regular" color="var(--text-primary)" /></span>
+                      <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}><cfg.IconComp size={18} weight="regular" color={cfg.color} /></span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 900, color: isPending ? '#DC2626' : cfg.color,
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1634,7 +1634,7 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center', gap: 6, padding: 16,
                 background: 'rgba(254,242,242,0.97)' }}>
-                <AlertTriangle size={22} color="var(--text-primary)" />
+                <AlertTriangle size={22} color="#EF4444" />
                 <span style={{ fontSize: 13, fontWeight: 900, color: '#EF4444', textAlign: 'center' }}>地圖載入失敗</span>
                 <span style={{ fontSize: 11, color: '#B91C1C', textAlign: 'center', wordBreak: 'break-all', maxWidth: '90%',
                   background: 'rgba(239,68,68,0.08)', borderRadius: 8, padding: '6px 10px',
