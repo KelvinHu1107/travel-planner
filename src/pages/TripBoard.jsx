@@ -330,8 +330,10 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 14px', borderRadius: 12,
                       background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)' }}>
                       <span style={{ fontSize: 12, fontWeight: 800, color: '#DC2626', flex: 1 }}>{t('settings.danger.confirmClear')}</span>
-                      <button onClick={() => setConfirmClear(false)} style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 11, fontWeight: 900, cursor: 'pointer', color: 'var(--text-muted)' }}>{t('common.cancel')}</button>
-                      <button onClick={handleClearCards} style={{ padding: '5px 10px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 900, cursor: 'pointer' }}>{t('common.confirm.clear')}</button>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button onClick={() => setConfirmClear(false)} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 11, fontWeight: 900, cursor: 'pointer', color: 'var(--text-muted)' }}>{t('common.cancel')}</button>
+                        <button onClick={handleClearCards} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 900, cursor: 'pointer' }}>{t('common.confirm.clear')}</button>
+                      </div>
                     </div>
                   )}
                   {isOwner ? (
@@ -345,8 +347,10 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 14px', borderRadius: 12,
                         background: 'rgba(220,38,38,0.10)', border: '1.5px solid rgba(220,38,38,0.35)' }}>
                         <span style={{ fontSize: 12, fontWeight: 800, color: '#DC2626', flex: 1 }}>{t('settings.danger.confirmDelete')}</span>
-                        <button onClick={() => setConfirmDelete(false)} style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 11, fontWeight: 900, cursor: 'pointer', color: 'var(--text-muted)' }}>{t('common.cancel')}</button>
-                        <button onClick={handleDeleteTrip} style={{ padding: '5px 10px', borderRadius: 8, border: 'none', background: '#B91C1C', color: '#fff', fontSize: 11, fontWeight: 900, cursor: 'pointer' }}>{t('common.confirm.delete')}</button>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 11, fontWeight: 900, cursor: 'pointer', color: 'var(--text-muted)' }}>{t('common.cancel')}</button>
+                          <button onClick={handleDeleteTrip} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#B91C1C', color: '#fff', fontSize: 11, fontWeight: 900, cursor: 'pointer' }}>{t('common.confirm.delete')}</button>
+                        </div>
                       </div>
                     )
                   ) : (
@@ -360,8 +364,10 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 14px', borderRadius: 12,
                         background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)' }}>
                         <span style={{ fontSize: 12, fontWeight: 800, color: '#DC2626', flex: 1 }}>{t('settings.danger.confirmLeave')}</span>
-                        <button onClick={() => setConfirmLeave(false)} style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 11, fontWeight: 900, cursor: 'pointer', color: 'var(--text-muted)' }}>{t('common.cancel')}</button>
-                        <button onClick={handleLeaveTrip} style={{ padding: '5px 10px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 900, cursor: 'pointer' }}>{t('common.confirm.leave')}</button>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          <button onClick={() => setConfirmLeave(false)} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 11, fontWeight: 900, cursor: 'pointer', color: 'var(--text-muted)' }}>{t('common.cancel')}</button>
+                          <button onClick={handleLeaveTrip} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 900, cursor: 'pointer' }}>{t('common.confirm.leave')}</button>
+                        </div>
                       </div>
                     )
                   )}
@@ -1002,6 +1008,11 @@ function FloatingAddButton({ onAddCard, onAddExpense, bottom = 36, size = 68, ic
     { IconComp: MapPin, label: '新增行程', color: '#B45309', shadow: '#7C2D12', action: onAddCard },
   ]
 
+  const fabBottom = typeof bottom === 'string' ? bottom : bottom
+  const menuBottom = typeof bottom === 'string'
+    ? `calc(${bottom} + ${size + 16}px)`
+    : bottom + size + 16
+
   return (
     <>
       {open && (
@@ -1010,7 +1021,7 @@ function FloatingAddButton({ onAddCard, onAddExpense, bottom = 36, size = 68, ic
 
       {open && (
         <div style={{
-          position: 'fixed', bottom: bottom + size + 16,
+          position: 'fixed', bottom: menuBottom,
           right: 'max(24px, env(safe-area-inset-right, 24px))',
           zIndex: 49, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end',
         }}>
@@ -1040,7 +1051,7 @@ function FloatingAddButton({ onAddCard, onAddExpense, bottom = 36, size = 68, ic
         data-tutorial-id={tutorialId}
         onClick={() => setOpen(v => !v)}
         style={{
-          position: 'fixed', bottom, right: 'max(24px, env(safe-area-inset-right, 24px))',
+          position: 'fixed', bottom: fabBottom, right: 'max(24px, env(safe-area-inset-right, 24px))',
           width: size, height: size, borderRadius: '50%', padding: 0,
           background: open
             ? 'linear-gradient(135deg,#6B7280,#4B5563)'
@@ -2362,7 +2373,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
           {mobileDay !== null && (
             <FloatingAddButton
               tutorialId="add-card-fab"
-              bottom={100}
+              bottom="calc(112px + env(safe-area-inset-bottom, 0px))"
               size={56}
               iconSize={22}
               onAddCard={() => setModal({ day: mobileDay, time: '09:00' })}
