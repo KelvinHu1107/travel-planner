@@ -128,7 +128,7 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave, isMobileMode 
               {t('common.cancel')}
             </button>
             <button onClick={(e) => { e.stopPropagation(); onDelete(trip.code) }}
-              style={{ flex: 2, padding: '9px', borderRadius: 10, border: 'none',
+              style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none',
                 background: 'linear-gradient(135deg,#EF4444,#B91C1C)', boxShadow: '0 3px 0 #7F1D1D',
                 color: '#fff', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
               {t('common.confirm.delete')}
@@ -151,7 +151,7 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave, isMobileMode 
               {t('common.cancel')}
             </button>
             <button onClick={(e) => { e.stopPropagation(); onLeave(trip.code) }}
-              style={{ flex: 2, padding: '9px', borderRadius: 10, border: 'none',
+              style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none',
                 background: 'linear-gradient(135deg,#EF4444,#B91C1C)', boxShadow: '0 3px 0 #7F1D1D',
                 color: '#fff', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
               {t('common.confirm.leave')}

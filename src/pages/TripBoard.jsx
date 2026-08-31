@@ -2373,7 +2373,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
           {mobileDay !== null && (
             <FloatingAddButton
               tutorialId="add-card-fab"
-              bottom="calc(112px + env(safe-area-inset-bottom, 0px))"
+              bottom="calc(182px + env(safe-area-inset-bottom, 0px))"
               size={56}
               iconSize={22}
               onAddCard={() => setModal({ day: mobileDay, time: '09:00' })}
