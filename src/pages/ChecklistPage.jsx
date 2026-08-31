@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Plus } from 'lucide-react'
 import { CopyLinkButton, FullscreenButton } from '../components/ui/TopBarActions'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useViewMode } from '../contexts/ViewModeContext'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   getTrip, subscribeToList, addListItem, updateListItem, deleteListItem,
   subscribeToCards, toggleAttachedTodo,
 } from '../services/firestore'
 import { CATEGORY } from '../components/cards/CardItem'
+import { useLanguage } from '../i18n/LanguageContext'
 
 const CFG = {
   todo: {
-    title: '待辦事項',
     emoji: '✅',
     emptyEmoji: '📋',
     color: '#B45309',
@@ -18,12 +19,12 @@ const CFG = {
     border: 'rgba(180,83,9,0.28)',
     checkColor: '#D97706',
     shadow: '#78350F',
-    placeholder: '新增待辦事項…',
-    emptyText: '還沒有待辦事項',
-    emptyHint: '在上方輸入框新增第一個項目',
+    titleKey: 'checklist.todo.title',
+    placeholderKey: 'checklist.todo.placeholder',
+    emptyTextKey: 'checklist.todo.empty',
+    emptyHintKey: 'checklist.todo.emptyHint',
   },
   packing: {
-    title: '打包清單',
     emoji: '🎒',
     emptyEmoji: '🧳',
     color: '#0F766E',
@@ -31,9 +32,10 @@ const CFG = {
     border: 'rgba(15,118,110,0.28)',
     checkColor: '#0F766E',
     shadow: '#064E3B',
-    placeholder: '新增需要帶的物品…',
-    emptyText: '清單是空的',
-    emptyHint: '在上方輸入框新增需要帶的東西',
+    titleKey: 'checklist.packing.title',
+    placeholderKey: 'checklist.packing.placeholder',
+    emptyTextKey: 'checklist.packing.empty',
+    emptyHintKey: 'checklist.packing.emptyHint',
   },
 }
 
@@ -131,13 +133,18 @@ function ChecklistItem({ item, onToggle, onDelete, cfg }) {
 export default function ChecklistPage({ type = 'todo' }) {
   const { tripId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const cfg = CFG[type]
+  const { isMobileMode, toggleMode } = useViewMode()
+  const { t } = useLanguage()
 
   const [trip, setTrip]   = useState(null)
   const [items, setItems] = useState([])
   const [cards, setCards] = useState([])
   const [newText, setNewText] = useState('')
   const [adding, setAdding]   = useState(false)
+  const [btnPressed, setBtnPressed] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -186,7 +193,8 @@ export default function ChecklistPage({ type = 'todo' }) {
       onToggle: () => updateListItem(tripId, type, item.id, { checked: !item.checked }).catch(console.error),
       onDelete: () => deleteListItem(tripId, type, item.id).catch(e => {
         console.error(e)
-        alert('刪除失敗，可能已被其他人刪除，請重新整理')
+        setDeleteError(t('checklist.error.delete'))
+        setTimeout(() => setDeleteError(''), 4000)
       }),
     })),
     ...cardTodoItems,
@@ -217,7 +225,7 @@ export default function ChecklistPage({ type = 'todo' }) {
         position: 'sticky', top: 0, zIndex: 40,
       }}>
         <button
-          onClick={() => navigate(`/trip/${tripId}`)}
+          onClick={() => navigate(`/trip/${tripId}`, { state: location.state })}
           style={{
             width: 40, height: 40, borderRadius: 12,
             border: '1.5px solid rgba(165,125,65,0.28)',
@@ -228,11 +236,11 @@ export default function ChecklistPage({ type = 'todo' }) {
           }}
         ><ArrowLeft size={18} /></button>
 
-        <span style={{ fontSize: 24 }}>{cfg.emoji}</span>
+        {!isMobileMode && <span style={{ fontSize: 24 }}>{cfg.emoji}</span>}
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-            {cfg.title}
+            {t(cfg.titleKey)}
           </h1>
           {trip && (
             <p style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginTop: 1,
@@ -248,11 +256,15 @@ export default function ChecklistPage({ type = 'todo' }) {
             background: cfg.bg, border: `1.5px solid ${cfg.border}`,
             fontSize: 12, fontWeight: 900, color: cfg.color, flexShrink: 0,
           }}>
-            {checked.length}/{allItems.length} 完成
+            {t('checklist.progress', { done: checked.length, total: allItems.length })}
           </div>
         )}
-        <CopyLinkButton style={{ marginLeft: 4 }} />
-        <FullscreenButton />
+        {!isMobileMode && <CopyLinkButton style={{ marginLeft: 4 }} />}
+        {!isMobileMode && <FullscreenButton />}
+        <button onClick={toggleMode} style={{
+          padding: '5px 9px', borderRadius: 9, border: '1.5px solid rgba(165,125,65,0.28)',
+          background: 'var(--bg-elevated)', color: 'var(--text-muted)', fontSize: 10, fontWeight: 900, cursor: 'pointer',
+        }}>{isMobileMode ? '💻' : '📱'}</button>
       </div>
 
       {/* Content */}
@@ -266,32 +278,47 @@ export default function ChecklistPage({ type = 'todo' }) {
             type="text"
             value={newText}
             onChange={e => setNewText(e.target.value)}
-            placeholder={cfg.placeholder}
+            placeholder={t(cfg.placeholderKey)}
             style={{ flex: 1, fontSize: 15 }}
           />
           <button
             type="submit"
             disabled={!newText.trim() || adding}
+            onMouseDown={() => newText.trim() && setBtnPressed(true)}
+            onMouseUp={() => setBtnPressed(false)}
+            onMouseLeave={() => setBtnPressed(false)}
+            onTouchStart={() => newText.trim() && setBtnPressed(true)}
+            onTouchEnd={() => setBtnPressed(false)}
             style={{
               padding: '0 22px', borderRadius: 16, flexShrink: 0,
               background: newText.trim()
                 ? `linear-gradient(135deg, ${cfg.checkColor}, ${cfg.color})`
                 : 'rgba(165,125,65,0.15)',
-              boxShadow: newText.trim()
+              boxShadow: newText.trim() && !btnPressed
                 ? `0 5px 0 ${cfg.shadow}, 0 8px 20px ${cfg.checkColor}30`
                 : 'none',
               border: 'none', color: newText.trim() ? '#fff' : 'var(--text-muted)',
               fontSize: 24, fontWeight: 900, cursor: newText.trim() ? 'pointer' : 'default',
-              transition: 'all 0.15s ease',
+              transition: 'all 0.12s cubic-bezier(0.34,1.56,0.64,1)',
+              transform: btnPressed ? 'scale(0.88) translateY(3px)' : 'scale(1) translateY(0)',
             }}
           ><Plus size={22} /></button>
         </form>
+
+        {/* 刪除錯誤提示 */}
+        {deleteError && (
+          <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 10,
+            background: 'rgba(220,38,38,0.08)', border: '1.5px solid rgba(220,38,38,0.25)',
+            fontSize: 12, fontWeight: 800, color: '#DC2626' }}>
+            ⚠️ {deleteError}
+          </div>
+        )}
 
         {/* Progress bar */}
         {allItems.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
-              <span style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-muted)' }}>進度</span>
+              <span style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-muted)' }}>{t('checklist.progress.label')}</span>
               <span style={{ fontSize: 12, fontWeight: 900, color: cfg.color }}>{pct}%</span>
             </div>
             <div style={{
@@ -318,10 +345,10 @@ export default function ChecklistPage({ type = 'todo' }) {
           }}>
             <div style={{ fontSize: 56 }}>{cfg.emptyEmoji}</div>
             <p style={{ fontSize: 17, fontWeight: 900, color: 'var(--text-secondary)' }}>
-              {cfg.emptyText}
+              {t(cfg.emptyTextKey)}
             </p>
             <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>
-              {cfg.emptyHint}
+              {t(cfg.emptyHintKey)}
             </p>
           </div>
         )}
@@ -345,7 +372,7 @@ export default function ChecklistPage({ type = 'todo' }) {
         {checked.length > 0 && unchecked.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0' }}>
             <div style={{ flex: 1, height: 1.5, background: 'rgba(165,125,65,0.18)' }} />
-            <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)' }}>已完成</span>
+            <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)' }}>{t('checklist.completed.label')}</span>
             <div style={{ flex: 1, height: 1.5, background: 'rgba(165,125,65,0.18)' }} />
           </div>
         )}
@@ -373,7 +400,7 @@ export default function ChecklistPage({ type = 'todo' }) {
             border: `2px solid ${cfg.border}`,
           }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div>
-            <p style={{ fontSize: 15, fontWeight: 900, color: cfg.color }}>全部完成！</p>
+            <p style={{ fontSize: 15, fontWeight: 900, color: cfg.color }}>{t('checklist.allDone')}</p>
           </div>
         )}
       </div>

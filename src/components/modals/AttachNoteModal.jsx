@@ -79,16 +79,16 @@ export default function AttachNoteModal({ sourceNote, targetCard, onConfirm, onC
         </div>
 
         {/* 按鈕 */}
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 12, maxWidth: 280, margin: '0 auto' }}>
           <button onClick={onCancel} style={{
-            flex: 1, padding: '14px', borderRadius: 16,
+            flex: 1, padding: '14px 20px', borderRadius: 16,
             background: 'var(--bg-elevated)', border: '1.5px solid var(--border)',
             color: 'var(--text-secondary)', fontSize: 14, fontWeight: 900, cursor: 'pointer',
           }}>
             取消
           </button>
           <button onClick={onConfirm} className="btn-game btn-primary" style={{
-            flex: 2, padding: '14px', fontSize: 14,
+            flex: 1, padding: '14px 20px', fontSize: 14,
           }}>
             ✅ 確認附加
           </button>

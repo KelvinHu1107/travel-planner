@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { loadGoogleMaps, getPlaceDetails } from '../../services/maps'
 
 function Highlight({ text, matched = [] }) {
@@ -58,6 +59,24 @@ function PlacePreview({ detail, onConfirm, onReset }) {
           </h3>
         </div>
       )}
+
+      {/* 小地圖 */}
+      {detail.lat && detail.lng && (() => {
+        const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+        if (!key) return null
+        const src = `https://maps.googleapis.com/maps/api/staticmap?center=${detail.lat},${detail.lng}&zoom=15&size=400x120&markers=color:red%7C${detail.lat},${detail.lng}&key=${key}&scale=2`
+        return (
+          <div style={{ margin: '0 0 0 0', height: 120, overflow: 'hidden', position: 'relative' }}>
+            <img src={src} alt="地圖" loading="lazy"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div style={{
+              position: 'absolute', bottom: 6, right: 8,
+              fontSize: 10, fontWeight: 700, color: 'rgba(0,0,0,0.45)',
+              background: 'rgba(255,255,255,0.7)', borderRadius: 4, padding: '1px 5px',
+            }}>© Google Maps</div>
+          </div>
+        )
+      })()}
 
       <div style={{ padding: '12px 16px 16px' }}>
         {detail.rating && (
@@ -132,21 +151,21 @@ function PlacePreview({ detail, onConfirm, onReset }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 9, marginTop: 14 }}>
+        <div style={{ display: 'flex', gap: 10, maxWidth: 280, margin: '0 auto', marginTop: 14 }}>
           <button type="button" onClick={onReset} style={{
-            flex: 1, padding: '11px', borderRadius: 12,
+            flex: 1, padding: '11px 16px', borderRadius: 12,
             background: 'var(--bg-elevated)', border: '1.5px solid var(--border)',
             color: 'var(--text-secondary)', fontSize: 12, fontWeight: 900, cursor: 'pointer',
           }}>
             🔍 重新搜尋
           </button>
           <button type="button" onClick={() => onConfirm(detail)} style={{
-            flex: 2, padding: '11px', borderRadius: 12,
+            flex: 1, padding: '11px 16px', borderRadius: 12,
             background: 'linear-gradient(135deg,#D97706,#B45309)',
             border: 'none', boxShadow: '0 5px 0 #78350F',
             color: '#fff', fontSize: 12, fontWeight: 900, cursor: 'pointer',
           }}>
-            ✅ 確認選擇這個地點
+            ✅ 確認選擇
           </button>
         </div>
       </div>
@@ -172,6 +191,7 @@ export default function PlaceSearch({
   const [preview, setPreview]       = useState(null)
   const autocompleteRef = useRef(null)
   const debounceRef     = useRef(null)
+  const inputWrapRef    = useRef(null)
 
   useEffect(() => {
     loadGoogleMaps()
@@ -255,9 +275,69 @@ export default function PlaceSearch({
     )
   }
 
+  // 計算下拉選單的 fixed 定位（於 render 時即時計算，避免被 modal overflow 裁切）
+  const dropdownPortal = (() => {
+    if (!open || suggestions.length === 0 || !inputWrapRef.current) return null
+    const r = inputWrapRef.current.getBoundingClientRect()
+    return createPortal(
+      <div style={{
+        position: 'fixed',
+        top: r.bottom + 6,
+        left: r.left,
+        width: r.width,
+        zIndex: 10000,
+        borderRadius: 16,
+        overflow: 'hidden',
+        background: 'rgba(255, 252, 243, 0.99)',
+        border: '1.5px solid rgba(165,125,65,0.28)',
+        boxShadow: '0 12px 40px rgba(120,80,20,0.22)',
+        backdropFilter: 'blur(20px)',
+      }}>
+        {suggestions.map((pred, i) => {
+          const main = pred.structured_formatting?.main_text ?? pred.description
+          const sub  = pred.structured_formatting?.secondary_text ?? ''
+          const mainMatches = pred.structured_formatting?.main_text_matched_substrings ?? []
+          const isActive = i === activeIdx
+          return (
+            <div key={pred.place_id}
+              onMouseDown={() => handlePickSuggestion(pred)}
+              onMouseEnter={() => setActiveIdx(i)}
+              style={{
+                padding: '11px 16px', cursor: 'pointer',
+                borderBottom: i < suggestions.length - 1 ? '1px solid rgba(165,125,65,0.08)' : 'none',
+                background: isActive ? 'rgba(180,83,9,0.07)' : 'transparent',
+                transition: 'background 0.1s',
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+              }}>
+              <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>📍</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--text-primary)',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <Highlight text={main} matched={mainMatches} />
+                </div>
+                {sub && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginTop: 2,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {sub}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+        <div style={{ padding: '6px 12px', textAlign: 'right' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(100,60,10,0.35)' }}>
+            Powered by Google
+          </span>
+        </div>
+      </div>,
+      document.body
+    )
+  })()
+
   return (
     <div>
-      <div style={{ position: 'relative' }}>
+      <div ref={inputWrapRef} style={{ position: 'relative' }}>
         <input
           className="game-input"
           type="text"
@@ -277,55 +357,8 @@ export default function PlaceSearch({
         </span>
       </div>
 
-      {/* 搜尋下拉 */}
-      {open && suggestions.length > 0 && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 9999,
-          borderRadius: 16, overflow: 'hidden',
-          background: 'rgba(255, 252, 243, 0.98)',
-          border: '1.5px solid rgba(165,125,65,0.28)',
-          boxShadow: '0 12px 40px rgba(120,80,20,0.18)',
-          backdropFilter: 'blur(20px)',
-        }}>
-          {suggestions.map((pred, i) => {
-            const main = pred.structured_formatting?.main_text ?? pred.description
-            const sub  = pred.structured_formatting?.secondary_text ?? ''
-            const mainMatches = pred.structured_formatting?.main_text_matched_substrings ?? []
-            const isActive = i === activeIdx
-            return (
-              <div key={pred.place_id}
-                onMouseDown={() => handlePickSuggestion(pred)}
-                onMouseEnter={() => setActiveIdx(i)}
-                style={{
-                  padding: '11px 16px', cursor: 'pointer',
-                  borderBottom: i < suggestions.length - 1 ? '1px solid rgba(165,125,65,0.08)' : 'none',
-                  background: isActive ? 'rgba(180,83,9,0.07)' : 'transparent',
-                  transition: 'background 0.1s',
-                  display: 'flex', alignItems: 'flex-start', gap: 10,
-                }}>
-                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>📍</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--text-primary)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <Highlight text={main} matched={mainMatches} />
-                  </div>
-                  {sub && (
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginTop: 2,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {sub}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-          <div style={{ padding: '6px 12px', textAlign: 'right' }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(100,60,10,0.35)' }}>
-              Powered by Google
-            </span>
-          </div>
-        </div>
-      )}
+      {/* 搜尋下拉（透過 Portal 渲染到 body，避免被 modal overflow/fixed 定位裁切） */}
+      {dropdownPortal}
 
       {detailLoading && (
         <div style={{ marginTop: 9, padding: '14px', borderRadius: 14, textAlign: 'center',

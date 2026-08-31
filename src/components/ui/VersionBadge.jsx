@@ -59,7 +59,7 @@ export default function VersionBadge() {
                   📋 Release Notes
                 </h2>
                 <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginTop: 3 }}>
-                  TripCoworking 更新紀錄
+                  TripTogether 更新紀錄
                 </p>
               </div>
               <button

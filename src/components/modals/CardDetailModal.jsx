@@ -1,19 +1,31 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, CircleCheck, Trash2, Plus, MoreHorizontal } from 'lucide-react'
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import {
+  X, CircleCheck, Trash2, Plus, MoreHorizontal,
+  Image, Pencil, Wallet, CheckSquare, Copy,
+  MapPin, FileText, Clock, ClipboardList, CalendarDays,
+} from 'lucide-react'
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { storage } from '../../services/firebase'
 import {
   addStorageUsedBytes, getStorageUsedMB,
   addAttachedTodo, removeAttachedTodo, toggleAttachedTodo,
   addAttachedExpense, removeAttachedExpense,
+  saveAttachedNotes,
 } from '../../services/firestore'
 import { compressImage, IMAGE_LIMIT_MB, TRIP_LIMIT_MB } from '../../utils/imageUtils'
 import { CATEGORY, timeToMinutes, minutesToTime } from '../cards/CardItem'
 import { getDaysInRange } from '../../utils/dateUtils'
 import FormatToolbar from '../ui/FormatToolbar'
+import { useLanguage } from '../../i18n/LanguageContext'
 
-const TRANSPORT_LABEL = { flight: '飛機', car: '自駕/計程車', transit: '大眾運輸', walk: '步行', boat: '船' }
+const TRANSPORT_LABEL_KEYS = {
+  flight: 'addCard.transport.flight',
+  car:    'addCard.transport.car',
+  transit:'addCard.transport.transit',
+  walk:   'addCard.transport.walk',
+  boat:   'addCard.transport.boat',
+}
 const CURRENCY_FLAG = {
   TWD: '🇹🇼', JPY: '🇯🇵', USD: '🇺🇸', EUR: '🇪🇺',
   KRW: '🇰🇷', HKD: '🇭🇰', SGD: '🇸🇬', AUD: '🇦🇺',
@@ -21,7 +33,8 @@ const CURRENCY_FLAG = {
 const CURRENCIES = ['TWD', 'JPY', 'USD', 'EUR', 'KRW', 'HKD', 'SGD', 'AUD']
 
 // ── 通用確認對話框 ────────────────────────────
-function ConfirmDialog({ open, title, message, confirmLabel = '確認', danger = false, onConfirm, onCancel }) {
+function ConfirmDialog({ open, title, message, confirmLabel, danger = false, onConfirm, onCancel }) {
+  const { t } = useLanguage()
   if (!open) return null
   return (
     <div
@@ -44,21 +57,22 @@ function ConfirmDialog({ open, title, message, confirmLabel = '確認', danger =
             {message}
           </p>
         )}
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 12, maxWidth: 280, margin: '0 auto' }}>
           <button onClick={onCancel} style={{
-            flex: 1, padding: '12px', borderRadius: 12,
+            flex: 1, padding: '12px 20px', borderRadius: 12,
             border: '1.5px solid rgba(165,125,65,0.25)',
             background: 'var(--bg-elevated)', color: 'var(--text-secondary)',
             fontSize: 14, fontWeight: 900, cursor: 'pointer',
-          }}>取消</button>
+            boxShadow: '0 4px 0 rgba(165,125,65,0.18)',
+          }}>{t('common.cancel')}</button>
           <button onClick={onConfirm} style={{
-            flex: 2, padding: '12px', borderRadius: 12, border: 'none',
+            flex: 1, padding: '12px 20px', borderRadius: 12, border: 'none',
             background: danger
               ? 'linear-gradient(135deg,#EF4444,#B91C1C)'
               : 'linear-gradient(135deg,#D97706,#B45309)',
             boxShadow: danger ? '0 4px 0 #7F1D1D' : '0 4px 0 #78350F',
             color: '#fff', fontSize: 14, fontWeight: 900, cursor: 'pointer',
-          }}>{confirmLabel}</button>
+          }}>{confirmLabel ?? t('common.confirm')}</button>
         </div>
       </div>
     </div>
@@ -67,6 +81,7 @@ function ConfirmDialog({ open, title, message, confirmLabel = '確認', danger =
 
 // ── 複製到其他天對話框 ────────────────────────
 function CopyDaysDialog({ open, availableDays, onConfirm, onCancel }) {
+  const { t } = useLanguage()
   const [selected, setSelected] = useState([])
   const [copying, setCopying]   = useState(false)
   const [error, setError]       = useState('')
@@ -81,7 +96,7 @@ function CopyDaysDialog({ open, availableDays, onConfirm, onCancel }) {
     if (!selected.length) return
     setCopying(true); setError('')
     try { await onConfirm(selected) }
-    catch { setError('複製失敗，請稍後再試') }
+    catch { setError(t('card.detail.copyDays.error')) }
     finally { setCopying(false) }
   }
 
@@ -100,9 +115,9 @@ function CopyDaysDialog({ open, availableDays, onConfirm, onCancel }) {
         boxShadow: '0 20px 60px rgba(80,40,5,0.32)',
         border: '1.5px solid rgba(165,125,65,0.28)',
       }}>
-        <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', marginBottom: 5 }}>複製到其他天</h3>
+        <h3 style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', marginBottom: 5 }}>{t('card.detail.copyDays')}</h3>
         <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 16 }}>
-          選擇要複製到哪幾天（可多選）
+          {t('card.detail.copyDays.hint')}
         </p>
         {error && (
           <div style={{ marginBottom: 12, fontSize: 12, fontWeight: 800, color: '#DC2626',
@@ -127,21 +142,21 @@ function CopyDaysDialog({ open, availableDays, onConfirm, onCancel }) {
             )
           })}
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 12, maxWidth: 280, margin: '0 auto' }}>
           <button onClick={onCancel} style={{
-            flex: 1, padding: '12px', borderRadius: 12,
+            flex: 1, padding: '12px 20px', borderRadius: 12,
             border: '1.5px solid rgba(165,125,65,0.25)',
             background: 'var(--bg-elevated)', color: 'var(--text-secondary)',
             fontSize: 14, fontWeight: 900, cursor: 'pointer',
-          }}>取消</button>
+          }}>{t('common.cancel')}</button>
           <button onClick={handleConfirm} disabled={!selected.length || copying} style={{
-            flex: 2, padding: '12px', borderRadius: 12, border: 'none',
+            flex: 1, padding: '12px 20px', borderRadius: 12, border: 'none',
             background: selected.length ? 'linear-gradient(135deg,#D97706,#B45309)' : 'rgba(165,125,65,0.15)',
             boxShadow: selected.length ? '0 4px 0 #78350F' : 'none',
             color: selected.length ? '#fff' : 'var(--text-muted)',
             fontSize: 14, fontWeight: 900, cursor: selected.length ? 'pointer' : 'default',
           }}>
-            {copying ? '複製中…' : `複製到 ${selected.length || ''} 天`}
+            {copying ? t('card.detail.copyDays.copying') : t('card.detail.copyDays.btn', { count: selected.length || '' })}
           </button>
         </div>
       </div>
@@ -177,7 +192,7 @@ function MoreMenuPopup({ items, onClose }) {
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(165,125,65,0.07)' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
           >
-            <span style={{ fontSize: 17 }}>{item.icon}</span>
+            <item.IconComp size={17} />
             {item.label}
           </button>
         ))}
@@ -187,6 +202,8 @@ function MoreMenuPopup({ items, onClose }) {
 }
 
 // ── 圖片上傳工具 ──────────────────────────────
+const uploadTimeout = (ms, msg) => new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))
+
 async function uploadImages(files, tripId) {
   const usedMB = await getStorageUsedMB(tripId)
   const compressed = await Promise.all(files.map(f => compressImage(f, IMAGE_LIMIT_MB)))
@@ -196,7 +213,7 @@ async function uploadImages(files, tripId) {
   const urls = await Promise.all(compressed.map(async file => {
     const path = `trips/${tripId}/images/${Date.now()}_${file.name}`
     const fRef = storageRef(storage, path)
-    await uploadBytes(fRef, file)
+    await Promise.race([uploadBytes(fRef, file), uploadTimeout(30000, 'Firebase Storage 上傳超時，請確認 Firebase Storage 已在 Console 中啟用')])
     return getDownloadURL(fRef)
   }))
   await addStorageUsedBytes(tripId, compressed.reduce((s, f) => s + f.size, 0))
@@ -233,6 +250,7 @@ function ImageGrid({ images, onDelete, canEdit }) {
 
 // ── 單筆附加筆記 ─────────────────────────────
 function AttachedNoteItem({ note, tripId, onSave, onRequestDelete }) {
+  const { t } = useLanguage()
   const [editing, setEditing]     = useState(false)
   const [draft, setDraft]         = useState({ ...note })
   const [uploading, setUploading] = useState(false)
@@ -242,6 +260,14 @@ function AttachedNoteItem({ note, tripId, onSave, onRequestDelete }) {
   const handleSave = () => { onSave(draft); setEditing(false) }
   const handleCancel = () => { setDraft({ ...note }); setEditing(false) }
   const handleContentChange = useCallback((val) => setDraft(d => ({ ...d, content: val })), [])
+
+  const handleStartEdit = () => {
+    setEditing(true)
+    setTimeout(() => {
+      noteTextareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      noteTextareaRef.current?.focus()
+    }, 150)
+  }
 
   return (
     <div style={{
@@ -255,15 +281,15 @@ function AttachedNoteItem({ note, tripId, onSave, onRequestDelete }) {
         background: 'rgba(91,33,182,0.05)',
       }}>
         <span style={{ fontSize: 12, fontWeight: 900, color: cfg.color }}>
-          📝 {editing ? '編輯筆記' : (note.title || '附加筆記')}
+          <Pencil size={12} style={{ marginRight: 5, verticalAlign: 'middle' }} />{editing ? t('card.detail.note.editing') : (note.title || t('card.detail.note.default'))}
         </span>
         {!editing && (
           <div style={{ display: 'flex', gap: 5 }}>
-            <button onClick={() => setEditing(true)} style={{
+            <button onClick={handleStartEdit} style={{
               padding: '3px 9px', borderRadius: 7, fontSize: 11, fontWeight: 900,
               background: 'rgba(91,33,182,0.10)', border: '1px solid rgba(91,33,182,0.25)',
               color: cfg.color, cursor: 'pointer',
-            }}>✏️ 編輯</button>
+            }}><Pencil size={11} style={{ marginRight: 4 }} />{t('common.edit')}</button>
             <button onClick={onRequestDelete} style={{
               padding: '3px 9px', borderRadius: 7, fontSize: 11, fontWeight: 900,
               background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.22)',
@@ -276,32 +302,32 @@ function AttachedNoteItem({ note, tripId, onSave, onRequestDelete }) {
         {editing ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ padding: '10px 14px 0' }}>
-              <input className="game-input" type="text" placeholder="筆記標題（選填）"
+              <input className="game-input" type="text" placeholder={t('card.detail.note.titlePlaceholder')}
                 value={draft.title ?? ''} onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
                 style={{ fontSize: 13 }} />
             </div>
             <FormatToolbar textareaRef={noteTextareaRef} content={draft.content ?? ''} onChange={handleContentChange} />
             <div style={{ padding: '0 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <textarea ref={noteTextareaRef} className="game-input"
-                placeholder="筆記內容…" value={draft.content ?? ''}
+                placeholder={t('card.detail.note.contentPlaceholder')} value={draft.content ?? ''}
                 onChange={e => setDraft(d => ({ ...d, content: e.target.value }))}
                 rows={4} style={{ resize: 'vertical', lineHeight: 1.6, fontSize: 12, borderRadius: '0 0 12px 12px' }} />
               {(draft.images?.length ?? 0) > 0 && (
                 <ImageGrid images={draft.images} canEdit
                   onDelete={i => setDraft(d => ({ ...d, images: d.images.filter((_, j) => j !== i) }))} />
               )}
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 10, maxWidth: 240, margin: '0 auto' }}>
                 <button onClick={handleCancel} style={{
-                  flex: 1, padding: '9px', borderRadius: 10, fontSize: 12, fontWeight: 900,
+                  flex: 1, padding: '9px 16px', borderRadius: 10, fontSize: 12, fontWeight: 900,
                   background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                   color: 'var(--text-muted)', cursor: 'pointer',
-                }}>取消</button>
+                }}>{t('common.cancel')}</button>
                 <button onClick={handleSave} style={{
-                  flex: 2, padding: '9px', borderRadius: 10, fontSize: 12, fontWeight: 900,
+                  flex: 1, padding: '9px 16px', borderRadius: 10, fontSize: 12, fontWeight: 900,
                   background: 'linear-gradient(135deg,#D97706,#B45309)',
                   border: 'none', boxShadow: '0 4px 0 #78350F', color: '#fff', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                }}><CircleCheck size={15} />儲存</button>
+                }}><CircleCheck size={15} />{t('common.save')}</button>
               </div>
             </div>
           </div>
@@ -324,38 +350,53 @@ function AttachedNoteItem({ note, tripId, onSave, onRequestDelete }) {
 
 // ── 新增筆記表單 ──────────────────────────────
 function AddNoteForm({ tripId, onAdd, onCancel }) {
+  const { t } = useLanguage()
   const [draft, setDraft]         = useState({ title: '', content: '', images: [] })
   const [uploading, setUploading] = useState(false)
+  const [uploadErr, setUploadErr] = useState('')
   const fileRef = useRef(null)
+  const formRef = useRef(null)
+
+  useEffect(() => {
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 150)
+  }, [])
 
   const handleUpload = async (e) => {
     const files = Array.from(e.target.files).slice(0, 6 - draft.images.length)
     if (!files.length) return
-    setUploading(true)
+    setUploading(true); setUploadErr('')
     try {
       const urls = await uploadImages(files, tripId)
       setDraft(d => ({ ...d, images: [...d.images, ...urls] }))
-    } catch (err) { alert('上傳失敗：' + err.message) }
+    } catch (err) { setUploadErr('上傳失敗：' + err.message) }
     finally { setUploading(false); e.target.value = '' }
   }
 
   return (
-    <div style={{ borderRadius: 16, border: '1.5px solid rgba(91,33,182,0.35)',
+    <div ref={formRef} style={{ borderRadius: 16, border: '1.5px solid rgba(91,33,182,0.35)',
       background: 'rgba(91,33,182,0.05)', overflow: 'hidden' }}>
       <div style={{ padding: '9px 13px', borderBottom: '1px solid rgba(91,33,182,0.12)',
         background: 'rgba(91,33,182,0.08)', fontSize: 12, fontWeight: 900, color: '#5B21B6' }}>
-        ✍️ 新增筆記
+        {t('card.detail.note.addTitle')}
       </div>
       <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-        <input className="game-input" type="text" placeholder="標題（選填）"
+        <input className="game-input" type="text" placeholder={t('card.detail.note.titleOptional')}
           value={draft.title} onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
           style={{ fontSize: 13 }} />
-        <textarea className="game-input" placeholder="輸入筆記內容…"
+        <textarea className="game-input" placeholder={t('card.detail.note.inputPlaceholder')}
           value={draft.content} onChange={e => setDraft(d => ({ ...d, content: e.target.value }))}
           rows={3} style={{ resize: 'vertical', lineHeight: 1.6, fontSize: 12 }} autoFocus />
         {draft.images.length > 0 && (
           <ImageGrid images={draft.images} canEdit
             onDelete={i => setDraft(d => ({ ...d, images: d.images.filter((_, j) => j !== i) }))} />
+        )}
+        {uploadErr && (
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#DC2626',
+            background: 'rgba(220,38,38,0.08)', borderRadius: 8, padding: '5px 9px' }}>
+            ⚠️ {uploadErr}
+          </div>
         )}
         {draft.images.length < 6 && (
           <>
@@ -364,25 +405,25 @@ function AddNoteForm({ tripId, onAdd, onCancel }) {
               width: '100%', padding: '8px', borderRadius: 10, fontSize: 12, fontWeight: 900,
               border: '1.5px dashed rgba(165,125,65,0.35)', background: 'transparent',
               color: uploading ? 'var(--text-muted)' : 'var(--accent)', cursor: uploading ? 'not-allowed' : 'pointer',
-            }}>{uploading ? '⏳ 上傳中…' : '🖼️ 附加圖片'}</button>
+            }}>{uploading ? `⏳ ${t('common.upload')}` : t('card.detail.note.attachImage')}</button>
           </>
         )}
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 10, maxWidth: 240, margin: '0 auto' }}>
           <button onClick={onCancel} style={{
-            flex: 1, padding: '9px', borderRadius: 10, fontSize: 12, fontWeight: 900,
+            flex: 1, padding: '9px 16px', borderRadius: 10, fontSize: 12, fontWeight: 900,
             background: 'var(--bg-elevated)', border: '1px solid var(--border)',
             color: 'var(--text-muted)', cursor: 'pointer',
-          }}>取消</button>
+          }}>{t('common.cancel')}</button>
           <button
             onClick={() => { if (draft.content.trim() || draft.title.trim()) onAdd(draft) }}
             disabled={!draft.content.trim() && !draft.title.trim()}
             style={{
-              flex: 2, padding: '9px', borderRadius: 10, fontSize: 12, fontWeight: 900,
+              flex: 1, padding: '9px 16px', borderRadius: 10, fontSize: 12, fontWeight: 900,
               background: 'linear-gradient(135deg,#D97706,#B45309)',
               border: 'none', boxShadow: '0 4px 0 #78350F', color: '#fff', cursor: 'pointer',
               opacity: (!draft.content.trim() && !draft.title.trim()) ? 0.5 : 1,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            }}><CircleCheck size={14} />加入筆記</button>
+            }}><CircleCheck size={14} />{t('card.detail.note.addBtn')}</button>
         </div>
       </div>
     </div>
@@ -391,6 +432,7 @@ function AddNoteForm({ tripId, onAdd, onCancel }) {
 
 // ── 待辦事項區段 ──────────────────────────────
 function AttachedTodosSection({ card, tripId }) {
+  const { t } = useLanguage()
   const [newText, setNewText] = useState('')
   const [adding, setAdding]   = useState(false)
   const todos = card.attachedTodos ?? []
@@ -410,16 +452,16 @@ function AttachedTodosSection({ card, tripId }) {
       <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)',
         letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 8,
         display: 'flex', alignItems: 'center', gap: 6 }}>
-        <CircleCheck size={13} />待辦事項
+        <CircleCheck size={13} />{t('card.detail.todo.title')}
         {todos.length > 0 && (
           <span style={{ background: 'rgba(180,83,9,0.10)', border: '1px solid rgba(180,83,9,0.25)',
             borderRadius: 20, padding: '2px 8px', fontSize: 10, color: '#B45309' }}>
-            {todos.filter(t => t.checked).length}/{todos.length}
+            {todos.filter(td => td.checked).length}/{todos.length}
           </span>
         )}
       </div>
       <form onSubmit={handleAdd} style={{ display: 'flex', gap: 7, marginBottom: todos.length ? 9 : 0 }}>
-        <input className="game-input" type="text" placeholder="新增待辦項目…"
+        <input className="game-input" type="text" placeholder={t('card.detail.todo.placeholder')}
           value={newText} onChange={e => setNewText(e.target.value)}
           style={{ flex: 1, fontSize: 12, padding: '8px 12px' }} autoFocus />
         <button type="submit" disabled={!newText.trim() || adding} style={{
@@ -470,6 +512,7 @@ function AttachedTodosSection({ card, tripId }) {
 
 // ── 消費記帳區段 ──────────────────────────────
 function AttachedExpensesSection({ card, tripId, autoShowForm }) {
+  const { t } = useLanguage()
   const [showForm, setShowForm] = useState(!!autoShowForm)
   const [form, setForm]         = useState({ name: '', amount: '', currency: 'TWD', notes: '' })
   const [saving, setSaving]     = useState(false)
@@ -500,7 +543,7 @@ function AttachedExpensesSection({ card, tripId, autoShowForm }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)',
           letterSpacing: '1px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
-          💰 消費記帳
+          {t('card.detail.expense.title')}
           {expenses.length > 0 && (
             <span style={{ background: 'rgba(146,64,14,0.12)', border: '1px solid rgba(146,64,14,0.28)',
               borderRadius: 20, padding: '2px 8px', fontSize: 10, color: '#92400E' }}>
@@ -513,7 +556,7 @@ function AttachedExpensesSection({ card, tripId, autoShowForm }) {
             padding: '4px 11px', borderRadius: 18, fontSize: 11, fontWeight: 900,
             background: 'rgba(146,64,14,0.08)', border: '1.5px solid rgba(146,64,14,0.25)',
             color: '#92400E', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-          }}><Plus size={13} />新增</button>
+          }}><Plus size={13} />{t('common.add')}</button>
         )}
       </div>
 
@@ -523,11 +566,11 @@ function AttachedExpensesSection({ card, tripId, autoShowForm }) {
           background: 'rgba(146,64,14,0.05)', border: '1.5px solid rgba(146,64,14,0.20)',
           display: 'flex', flexDirection: 'column', gap: 9,
         }}>
-          <input className="game-input" type="text" placeholder="消費名稱（例：門票）"
+          <input className="game-input" type="text" placeholder={t('card.detail.expense.namePlaceholder')}
             value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             style={{ fontSize: 13 }} required autoFocus />
           <div style={{ display: 'flex', gap: 9 }}>
-            <input className="game-input" type="number" placeholder="金額" min="0" step="1"
+            <input className="game-input" type="number" placeholder={t('card.detail.expense.amount')} min="0" step="1"
               value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
               style={{ flex: 2, fontSize: 13 }} required />
             <select className="game-input" value={form.currency}
@@ -536,7 +579,7 @@ function AttachedExpensesSection({ card, tripId, autoShowForm }) {
               {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <input className="game-input" type="text" placeholder="備注（選填）"
+          <input className="game-input" type="text" placeholder={t('expense.field.notes')}
             value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
             style={{ fontSize: 12 }} />
           <div style={{ display: 'flex', gap: 8 }}>
@@ -544,7 +587,7 @@ function AttachedExpensesSection({ card, tripId, autoShowForm }) {
               onClick={() => { setShowForm(false); setForm({ name: '', amount: '', currency: 'TWD', notes: '' }) }}
               style={{ flex: 1, padding: '9px', borderRadius: 10, fontSize: 12, fontWeight: 900,
                 background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                color: 'var(--text-muted)', cursor: 'pointer' }}>取消</button>
+                color: 'var(--text-muted)', cursor: 'pointer' }}>{t('common.cancel')}</button>
             <button type="submit" disabled={!form.name.trim() || !form.amount || saving}
               style={{ flex: 2, padding: '9px', borderRadius: 10, fontSize: 12, fontWeight: 900,
                 background: form.name.trim() && form.amount ? 'linear-gradient(135deg,#D97706,#B45309)' : 'rgba(165,125,65,0.15)',
@@ -552,7 +595,7 @@ function AttachedExpensesSection({ card, tripId, autoShowForm }) {
                 color: form.name.trim() && form.amount ? '#fff' : 'var(--text-muted)', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}>
-              {saving ? '新增中…' : <><CircleCheck size={14} />加入</>}
+              {saving ? t('expense.submitting') : <><CircleCheck size={14} />{t('card.detail.expense.addBtn')}</>}
             </button>
           </div>
         </form>
@@ -584,7 +627,7 @@ function AttachedExpensesSection({ card, tripId, autoShowForm }) {
             <div style={{ padding: '10px 13px', borderRadius: 13,
               background: 'rgba(146,64,14,0.08)', border: '1.5px solid rgba(146,64,14,0.22)',
               display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', marginRight: 4 }}>小計</span>
+              <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', marginRight: 4 }}>{t('card.detail.expense.subtotal')}</span>
               {Object.entries(totals).map(([cur, total]) => (
                 <span key={cur} style={{ fontSize: 14, fontWeight: 900, color: '#92400E' }}>
                   {CURRENCY_FLAG[cur] ?? '💱'} {Number(total).toLocaleString()} {cur}
@@ -601,32 +644,28 @@ function AttachedExpensesSection({ card, tripId, autoShowForm }) {
 // ── 主 Modal ─────────────────────────────────
 export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpdate, tripId, isMobile, trip, onCopyCard }) {
   const navigate = useNavigate()
+  const { t } = useLanguage()
 
-  // 對話框狀態
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
   const [confirmDeleteNoteIdx, setConfirmDeleteNoteIdx] = useState(null)
   const [showCopyDialog, setShowCopyDialog]       = useState(false)
-
-  // 更多選單
   const [showMoreMenu, setShowMoreMenu] = useState(false)
-
-  // 新增區段觸發
   const [showAddTodo, setShowAddTodo]       = useState(false)
   const [showAddExpense, setShowAddExpense] = useState(false)
   const [showAddNote, setShowAddNote]       = useState(false)
-
-  // 圖片上傳
   const [uploadingImg, setUploadingImg] = useState(false)
+  const [cardImgErr, setCardImgErr]     = useState('')
   const cardImgRef = useRef(null)
 
   const cfg     = CATEGORY[card.type] ?? CATEGORY.note
-  const endTime = minutesToTime(timeToMinutes(card.startTime) + card.duration)
+  const endTotalMin = timeToMinutes(card.startTime) + card.duration
+  const endTime = minutesToTime(endTotalMin % (24 * 60))
+  const crossesMidnight = endTotalMin >= 24 * 60
   const todayIdx   = (new Date().getDay() + 6) % 7
   const todayHours = card.weekdayText?.[todayIdx]?.replace(/^[^:]+: ?/, '') ?? null
 
   const availableDays = trip ? getDaysInRange(trip.startDate, trip.endDate).filter(d => d !== card.day) : []
 
-  // 導航
   const handleNavigate = () => {
     const base = 'https://www.google.com/maps/dir/?api=1'
     const url = card.placeId
@@ -637,8 +676,13 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
     window.open(url, '_blank')
   }
 
-  // 筆記 CRUD
-  const saveNotes = (notes) => onUpdate?.(card.id, { attachedNotes: notes })
+  const saveNotes = async (notes) => {
+    if (tripId) {
+      await saveAttachedNotes(tripId, card.id, notes)
+    } else {
+      onUpdate?.(card.id, { attachedNotes: notes })
+    }
+  }
   const handleEditNote   = (idx, updated) => { const n = [...(card.attachedNotes ?? [])]; n[idx] = { ...n[idx], ...updated }; saveNotes(n) }
   const handleDeleteNote = (idx) => { saveNotes((card.attachedNotes ?? []).filter((_, i) => i !== idx)); setConfirmDeleteNoteIdx(null) }
   const handleAddNote    = (draft) => {
@@ -646,36 +690,40 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
     setShowAddNote(false)
   }
 
-  // 卡片圖片
   const handleCardImgPick = async (e) => {
     const files = Array.from(e.target.files).slice(0, 6 - (card.images?.length ?? 0))
     if (!files.length || !tripId) return
-    setUploadingImg(true)
+    setUploadingImg(true); setCardImgErr('')
     try {
       const urls = await uploadImages(files, tripId)
       onUpdate?.(card.id, { images: [...(card.images ?? []), ...urls] })
-    } catch (err) { alert('上傳失敗：' + err.message) }
+    } catch (err) { setCardImgErr('上傳失敗：' + err.message) }
     finally { setUploadingImg(false); e.target.value = '' }
   }
 
-  const handleDeleteCardImage = (idx) => {
+  const handleDeleteCardImage = async (idx) => {
+    const url = card.images?.[idx]
     onUpdate?.(card.id, { images: (card.images ?? []).filter((_, i) => i !== idx) })
+    if (url) {
+      try {
+        const encoded = new URL(url).pathname.split('/o/')[1]
+        if (encoded) await deleteObject(storageRef(storage, decodeURIComponent(encoded.split('?')[0])))
+      } catch (_) { /* ignore: already deleted or external URL */ }
+    }
   }
 
-  // 複製到其他天
   const handleCopyTodays = async (days) => {
     await onCopyCard(card, days)
     setShowCopyDialog(false)
   }
 
-  // MoreMenu 選項
   const moreItems = [
-    { icon: '🖼️', label: '新增圖片', onClick: () => { cardImgRef.current?.click() } },
-    { icon: '📝', label: '新增筆記', onClick: () => setShowAddNote(true) },
-    { icon: '💰', label: '新增消費', onClick: () => setShowAddExpense(true) },
-    { icon: '✅', label: '新增待辦', onClick: () => setShowAddTodo(true) },
+    { IconComp: Image,        label: t('card.detail.menu.addImage'),   onClick: () => { cardImgRef.current?.click() } },
+    { IconComp: Pencil,       label: t('card.detail.menu.addNote'),    onClick: () => setShowAddNote(true) },
+    { IconComp: Wallet,       label: t('card.detail.menu.addExpense'), onClick: () => setShowAddExpense(true) },
+    { IconComp: CheckSquare,  label: t('card.detail.menu.addTodo'),    onClick: () => setShowAddTodo(true) },
     ...(onCopyCard && availableDays.length > 0
-      ? [{ icon: '📋', label: '複製到其他天', onClick: () => setShowCopyDialog(true) }]
+      ? [{ IconComp: Copy, label: t('card.detail.menu.copyDays'), onClick: () => setShowCopyDialog(true) }]
       : []),
   ]
 
@@ -683,6 +731,12 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
   const hasExpenses = (card.attachedExpenses?.length ?? 0) > 0
   const hasNotes    = (card.attachedNotes?.length ?? 0) > 0
   const hasImages   = (card.images?.length ?? 0) > 0
+
+  const durationLabel = card.duration >= 60
+    ? (card.duration % 60
+        ? t('card.detail.duration.full', { hours: Math.floor(card.duration/60), mins: card.duration%60 })
+        : t('card.detail.duration.hOnly', { hours: Math.floor(card.duration/60) }))
+    : t('card.detail.duration.mOnly', { mins: card.duration })
 
   return (
     <>
@@ -751,15 +805,13 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14,
               padding: '10px 13px', borderRadius: 13,
               background: 'rgba(165,125,65,0.08)', border: '1px solid rgba(165,125,65,0.18)' }}>
-              <span style={{ fontSize: 15 }}>📅</span>
+              <CalendarDays size={15} color="var(--text-muted)" />
               <div>
                 <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--text-primary)' }}>
-                  {card.day}　{card.startTime} – {endTime}
+                  {card.day}　{card.startTime} – {endTime}{crossesMidnight ? ` (${t('card.detail.crossMidnight')})` : ''}
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginTop: 1 }}>
-                  共 {card.duration >= 60
-                    ? `${Math.floor(card.duration/60)} 小時${card.duration%60 ? ` ${card.duration%60} 分` : ''}`
-                    : `${card.duration} 分鐘`}
+                  {durationLabel}
                 </div>
               </div>
             </div>
@@ -769,14 +821,26 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 12px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-              {/* ── 景點資訊（地址 + 營業時間，不顯示評分）── */}
-              {card.type === 'attraction' && (card.address || todayHours || card.weekdayText) && (
+              {/* ── 地址 / 小地圖 / 營業時間（景點、餐廳、住宿）── */}
+              {['attraction', 'restaurant', 'accommodation'].includes(card.type) && (card.address || todayHours || card.weekdayText) && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {card.lat && card.lng && (
+                    <div style={{ borderRadius: 14, overflow: 'hidden', height: 130,
+                      border: '1px solid rgba(165,125,65,0.18)', cursor: 'pointer' }}
+                      onClick={handleNavigate}>
+                      <img
+                        src={`https://maps.googleapis.com/maps/api/staticmap?center=${card.lat},${card.lng}&zoom=15&size=400x130&markers=color:red%7C${card.lat},${card.lng}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&scale=2`}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
                   {card.address && (
                     <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start',
                       padding: '11px 14px', borderRadius: 13,
                       background: 'rgba(165,125,65,0.07)', border: '1px solid rgba(165,125,65,0.18)' }}>
-                      <span style={{ fontSize: 16, flexShrink: 0 }}>📍</span>
+                      <MapPin size={16} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
                       <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-secondary)',
                         lineHeight: 1.5, wordBreak: 'break-all' }}>{card.address}</span>
                     </div>
@@ -785,15 +849,15 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
                     <div style={{ padding: '11px 14px', borderRadius: 13,
                       background: 'rgba(15,118,110,0.07)', border: '1px solid rgba(15,118,110,0.20)' }}>
                       <div style={{ fontSize: 10, fontWeight: 900, color: '#0F766E',
-                        letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>今日營業時間</div>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)' }}>🕐 {todayHours}</div>
+                        letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>{t('card.detail.openHoursToday')}</div>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}><Clock size={14} /> {todayHours}</div>
                     </div>
                   )}
                   {!todayHours && card.weekdayText && (
                     <details style={{ cursor: 'pointer' }}>
                       <summary style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-muted)',
                         padding: '7px 0', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span>📋</span> 查看本週完整時段
+                        <ClipboardList size={14} /> {t('card.detail.openHoursWeek')}
                       </summary>
                       <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
                         {card.weekdayText.map((line, i) => (
@@ -817,19 +881,19 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)',
-                        letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 3 }}>出發地</div>
+                        letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 3 }}>{t('card.detail.transport.from')}</div>
                       <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)' }}>{card.from || '—'}</div>
                     </div>
                     <div style={{ fontSize: 20, color: 'var(--text-muted)' }}>→</div>
                     <div style={{ flex: 1, textAlign: 'right' }}>
                       <div style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)',
-                        letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 3 }}>目的地</div>
+                        letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 3 }}>{t('card.detail.transport.to')}</div>
                       <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-primary)' }}>{card.to || '—'}</div>
                     </div>
                   </div>
                   {card.mode && (
                     <div style={{ marginTop: 9, textAlign: 'center', fontSize: 12, fontWeight: 800, color: '#0F766E' }}>
-                      {TRANSPORT_LABEL[card.mode] ?? card.mode}
+                      {t(TRANSPORT_LABEL_KEYS[card.mode] ?? 'addCard.transport.transit')}
                     </div>
                   )}
                 </div>
@@ -840,7 +904,7 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
                 <div style={{ padding: '18px', borderRadius: 13, textAlign: 'center',
                   background: 'rgba(146,64,14,0.07)', border: '1px solid rgba(146,64,14,0.20)' }}>
                   <div style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-muted)',
-                    letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>金額</div>
+                    letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>{t('card.detail.expense.amount')}</div>
                   <div style={{ fontSize: 34, fontWeight: 900, color: '#92400E' }}>
                     {CURRENCY_FLAG[card.currency] ?? '💱'} {Number(card.amount).toLocaleString()}
                   </div>
@@ -851,7 +915,7 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
                     <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, textAlign: 'left',
                       background: 'rgba(146,64,14,0.06)', border: '1px solid rgba(146,64,14,0.18)',
                       fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                      📝 {card.notes}
+                      <Pencil size={12} style={{ marginRight: 5, verticalAlign: 'middle', flexShrink: 0 }} />{card.notes}
                     </div>
                   )}
                 </div>
@@ -862,25 +926,31 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
                 <div style={{ padding: '14px', borderRadius: 13,
                   background: 'rgba(91,33,182,0.06)', border: '1px solid rgba(91,33,182,0.18)' }}>
                   <div style={{ fontSize: 10, fontWeight: 900, color: '#5B21B6',
-                    letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>筆記內容</div>
+                    letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 7 }}>{t('card.detail.noteContent')}</div>
                   <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-secondary)',
                     lineHeight: 1.8, whiteSpace: 'pre-wrap', margin: 0 }}>{card.content}</p>
                 </div>
               )}
 
-              {/* ── 圖片（只有有圖片時才顯示）── */}
+              {/* ── 圖片 ── */}
               {hasImages && (
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)',
                     letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10,
                     display: 'flex', alignItems: 'center', gap: 6 }}>
-                    🖼️ 圖片
+                    {t('card.detail.images.title')}
                     <span style={{ background: 'rgba(165,125,65,0.15)', border: '1px solid rgba(165,125,65,0.30)',
                       borderRadius: 20, padding: '2px 8px', fontSize: 10, color: 'var(--accent)' }}>
                       {card.images.length}
                     </span>
                   </div>
                   <ImageGrid images={card.images} canEdit onDelete={handleDeleteCardImage} />
+                  {cardImgErr && (
+                    <div style={{ marginTop: 6, fontSize: 11, fontWeight: 800, color: '#DC2626',
+                      background: 'rgba(220,38,38,0.08)', borderRadius: 8, padding: '5px 9px' }}>
+                      ⚠️ {cardImgErr}
+                    </div>
+                  )}
                   {card.images.length < 6 && (
                     <button type="button"
                       onClick={() => !uploadingImg && cardImgRef.current?.click()}
@@ -889,34 +959,71 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
                         border: '1.5px dashed rgba(165,125,65,0.35)', background: 'transparent',
                         color: uploadingImg ? 'var(--text-muted)' : 'var(--accent)',
                         cursor: uploadingImg ? 'not-allowed' : 'pointer' }}>
-                      {uploadingImg ? '⏳ 上傳中…' : `🖼️ 繼續上傳（最多 ${6 - card.images.length} 張）`}
+                      {uploadingImg ? `⏳ ${t('common.upload')}` : t('card.detail.images.uploadMore', { count: 6 - card.images.length })}
                     </button>
                   )}
                 </div>
               )}
               <input ref={cardImgRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleCardImgPick} />
 
-              {/* ── 待辦事項（有內容 or 觸發新增時顯示）── */}
+              {/* ── 附件 ── */}
+              {(card.attachments?.length ?? 0) > 0 && (
+                <div style={{ borderTop: '1px solid rgba(165,125,65,0.12)', paddingTop: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)',
+                    letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10,
+                    display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {t('card.detail.attachment.title')}
+                    <span style={{ background: 'rgba(165,125,65,0.15)', border: '1px solid rgba(165,125,65,0.30)',
+                      borderRadius: 20, padding: '2px 8px', fontSize: 10, color: 'var(--accent)' }}>
+                      {card.attachments.length}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {card.attachments.map((att, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 9,
+                        padding: '10px 13px', borderRadius: 12,
+                        background: 'rgba(165,125,65,0.07)', border: '1px solid rgba(165,125,65,0.18)',
+                      }}>
+                        <span style={{ fontSize: 20, flexShrink: 0 }}>
+                          {att.type === 'application/pdf' ? <FileText size={20} /> : <Pencil size={20} />}
+                        </span>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 800, color: 'var(--text-primary)',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {att.name}
+                        </span>
+                        <button onClick={() => window.open(att.url, '_blank')} style={{
+                          padding: '5px 13px', borderRadius: 9, fontSize: 12, fontWeight: 900, cursor: 'pointer',
+                          background: 'rgba(15,118,110,0.10)', border: '1.5px solid rgba(15,118,110,0.25)',
+                          color: '#0F766E', flexShrink: 0,
+                        }}>{t('card.detail.attachment.view')}</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── 待辦事項 ── */}
               {(hasTodos || showAddTodo) && (
                 <div style={{ borderTop: '1px solid rgba(165,125,65,0.12)', paddingTop: 14 }}>
                   <AttachedTodosSection card={card} tripId={tripId} />
                 </div>
               )}
 
-              {/* ── 消費記帳（有內容 or 觸發新增時顯示）── */}
+              {/* ── 消費記帳 ── */}
               {(hasExpenses || showAddExpense) && (
                 <div style={{ borderTop: '1px solid rgba(165,125,65,0.12)', paddingTop: 14 }}>
                   <AttachedExpensesSection card={card} tripId={tripId} autoShowForm={showAddExpense && !hasExpenses} />
                 </div>
               )}
 
-              {/* ── 附加筆記（有內容 or 觸發新增時顯示）── */}
+              {/* ── 附加筆記 ── */}
               {(hasNotes || showAddNote) && (
                 <div style={{ borderTop: '1px solid rgba(165,125,65,0.12)', paddingTop: 14 }}>
                   <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)',
                     letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10,
                     display: 'flex', alignItems: 'center', gap: 6 }}>
-                    📝 附加筆記
+                    {t('card.detail.notes')}
                     {hasNotes && (
                       <span style={{ background: 'rgba(91,33,182,0.12)', border: '1px solid rgba(91,33,182,0.28)',
                         borderRadius: 20, padding: '2px 8px', fontSize: 10, color: '#5B21B6' }}>
@@ -946,7 +1053,7 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
                         width: '100%', padding: '9px', borderRadius: 12, fontSize: 12, fontWeight: 900,
                         border: '1.5px dashed rgba(91,33,182,0.28)', background: 'transparent',
                         color: '#5B21B6', cursor: 'pointer',
-                      }}>+ 再加一則筆記</button>
+                      }}>{t('card.detail.note.addMore')}</button>
                     )}
                   </div>
                 </div>
@@ -959,48 +1066,16 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
           <div style={{ padding: '12px 20px 18px', flexShrink: 0,
             borderTop: '1px solid rgba(165,125,65,0.15)' }}>
 
-            {/* 主要動作（Maps / 筆記頁）*/}
-            {card.type === 'attraction' && (
-              <button onClick={handleNavigate} className="btn-game" style={{
-                width: '100%', padding: '12px', fontSize: 13, marginBottom: 10,
-                background: 'linear-gradient(135deg,#C2410C,#9A3412)',
-                boxShadow: '0 5px 0 #7C2D12', color: '#fff', borderRadius: 14,
-              }}>🗺️ 開啟 Google Maps 導航</button>
-            )}
-            {card.type === 'transport' && (card.from || card.to) && (
-              <button onClick={() => {
-                const base = 'https://www.google.com/maps/dir/?api=1'
-                const from = encodeURIComponent(card.from || '')
-                const to   = encodeURIComponent(card.to || '')
-                const mode = card.mode === 'transit' ? 'transit' : card.mode === 'walk' ? 'walking' : 'driving'
-                window.open(card.from && card.to
-                  ? `${base}&origin=${from}&destination=${to}&travelmode=${mode}`
-                  : `${base}&destination=${from || to}`, '_blank')
-              }} className="btn-game" style={{
-                width: '100%', padding: '12px', fontSize: 13, marginBottom: 10,
-                background: 'linear-gradient(135deg,#0F766E,#0D5C56)',
-                boxShadow: '0 5px 0 #064E3B', color: '#fff', borderRadius: 14,
-              }}>🗺️ 開啟 Google Maps 路線規劃</button>
-            )}
-            {card.type === 'note' && (
-              <button onClick={() => { onClose(); navigate(`/trip/${tripId}/note/${card.id}`) }} style={{
-                width: '100%', padding: '12px', fontSize: 13, marginBottom: 10,
-                background: 'linear-gradient(135deg,#7C3AED,#5B21B6)',
-                boxShadow: '0 5px 0 #3B0764', color: '#fff', fontWeight: 900,
-                cursor: 'pointer', border: 'none', borderRadius: 14,
-              }}>📄 開啟完整筆記頁面</button>
-            )}
-
-            {/* 次要動作：編輯 ｜ ... ｜ 刪除 */}
-            <div style={{ display: 'flex', gap: 9 }}>
+            <div style={{ display: 'flex', gap: 9, alignItems: 'center', marginBottom: 10 }}>
               <button onClick={() => onEdit(card)} style={{
-                flex: 2, padding: '11px', borderRadius: 12,
+                padding: '13px 22px', borderRadius: 12, width: 'auto', flexShrink: 0,
                 background: 'linear-gradient(135deg,#D97706,#B45309)',
                 border: 'none', boxShadow: '0 4px 0 #78350F',
                 color: '#fff', fontSize: 13, fontWeight: 900, cursor: 'pointer',
-              }}>✏️ 編輯</button>
+              }}><Pencil size={14} style={{ marginRight: 6 }} />{t('card.detail.edit')}</button>
 
-              {/* 更多選單 */}
+              <div style={{ flex: 1 }} />
+
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 <button
                   onClick={() => setShowMoreMenu(v => !v)}
@@ -1024,25 +1099,56 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}><Trash2 size={17} /></button>
             </div>
+
+            {['attraction', 'restaurant', 'accommodation'].includes(card.type) && (card.address || card.lat || card.placeId) && (
+              <button onClick={handleNavigate} className="btn-game" style={{
+                width: '100%', padding: '13px', fontSize: 13,
+                background: 'linear-gradient(135deg,#C2410C,#9A3412)',
+                boxShadow: '0 4px 0 #7C2D12', color: '#fff', borderRadius: 14,
+              }}>{t('card.detail.navigate.gmap')}</button>
+            )}
+            {card.type === 'transport' && (card.from || card.to) && (
+              <button onClick={() => {
+                const base = 'https://www.google.com/maps/dir/?api=1'
+                const from = encodeURIComponent(card.from || '')
+                const to   = encodeURIComponent(card.to || '')
+                const mode = card.mode === 'transit' ? 'transit' : card.mode === 'walk' ? 'walking' : 'driving'
+                window.open(card.from && card.to
+                  ? `${base}&origin=${from}&destination=${to}&travelmode=${mode}`
+                  : `${base}&destination=${from || to}`, '_blank')
+              }} className="btn-game" style={{
+                width: '100%', padding: '13px', fontSize: 13,
+                background: 'linear-gradient(135deg,#0F766E,#0D5C56)',
+                boxShadow: '0 4px 0 #064E3B', color: '#fff', borderRadius: 14,
+              }}>{t('card.detail.navigate.route')}</button>
+            )}
+            {card.type === 'note' && (
+              <button onClick={() => { onClose(); navigate(`/trip/${tripId}/note/${card.id}`) }} style={{
+                width: '100%', padding: '13px', fontSize: 13,
+                background: 'linear-gradient(135deg,#7C3AED,#5B21B6)',
+                boxShadow: '0 5px 0 #3B0764', color: '#fff', fontWeight: 900,
+                cursor: 'pointer', border: 'none', borderRadius: 14,
+              }}>{t('card.detail.openNote.full')}</button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── 對話框（在 modal 之外，z-index 更高）── */}
+      {/* 對話框 */}
       <ConfirmDialog
         open={showConfirmDelete}
-        title="刪除行程卡片"
-        message={`確定要刪除「${card.title}」？此操作無法復原。`}
-        confirmLabel="確認刪除"
+        title={t('card.detail.delete.title')}
+        message={t('card.detail.delete.message', { title: card.title })}
+        confirmLabel={t('card.detail.delete.confirm')}
         danger
         onConfirm={() => { onDelete(card.id); onClose() }}
         onCancel={() => setShowConfirmDelete(false)}
       />
       <ConfirmDialog
         open={confirmDeleteNoteIdx !== null}
-        title="刪除附加筆記"
-        message="確定要刪除這則筆記嗎？"
-        confirmLabel="確認刪除"
+        title={t('card.detail.deleteNote.title')}
+        message={t('card.detail.deleteNote.message')}
+        confirmLabel={t('card.detail.delete.confirm')}
         danger
         onConfirm={() => handleDeleteNote(confirmDeleteNoteIdx)}
         onCancel={() => setConfirmDeleteNoteIdx(null)}
