@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getCard, updateCard } from '../services/firestore'
+import { doc, onSnapshot } from 'firebase/firestore'
+import { db } from '../services/firebase'
+import { updateCard } from '../services/firestore'
 import FormatToolbar from '../components/ui/FormatToolbar'
-import { ArrowLeft, CircleCheck, Pencil, Eye, Clock, CalendarDays, FileText } from 'lucide-react'
+import { ArrowLeft, CircleCheck, Pencil, Eye, Clock, CalendarDays, FileText, AlertTriangle } from 'lucide-react'
 import { NotePencil } from '@phosphor-icons/react'
 import { useViewMode } from '../contexts/ViewModeContext'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -139,42 +141,67 @@ export default function NoteDetail() {
   const [content, setContent] = useState('')
   const [saving, setSaving]   = useState(false)
   const [saved, setSaved]     = useState(false)
+  const [saveError, setSaveError] = useState('') // Bug #23：auto-save 失敗訊息
   const [viewMode, setViewMode] = useState('edit') // 'edit' | 'preview'
   const saveTimer = useRef(null)
   const textareaRef = useRef(null)
+  // 使用者已編輯中的欄位（避免遠端更新覆蓋當前輸入）
+  const localDirtyRef = useRef({ title: false, content: false })
 
+  // Bug #39：改用 onSnapshot 訂閱卡片，即時同步遠端變更
   useEffect(() => {
-    getCard(tripId, noteId)
-      .then(c => {
+    const ref = doc(db, 'trips', tripId, 'cards', noteId)
+    const unsub = onSnapshot(ref,
+      (snap) => {
+        if (!snap.exists()) {
+          setError('筆記不存在或已被刪除')
+          setLoading(false)
+          return
+        }
+        const c = { id: snap.id, ...snap.data() }
         setCard(c)
-        setTitle(c.title ?? '')
-        setContent(c.content ?? '')
-      })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
+        // 使用者正在編輯欄位時，不覆蓋當前 input 內容
+        if (!localDirtyRef.current.title) setTitle(c.title ?? '')
+        if (!localDirtyRef.current.content) setContent(c.content ?? '')
+        setLoading(false)
+      },
+      (err) => {
+        setError(err.message)
+        setLoading(false)
+      }
+    )
+    return () => unsub()
   }, [tripId, noteId])
 
   const triggerAutoSave = useCallback((newTitle, newContent) => {
     clearTimeout(saveTimer.current)
     setSaved(false)
+    setSaveError('')
     saveTimer.current = setTimeout(async () => {
       setSaving(true)
       try {
         await updateCard(tripId, noteId, { title: newTitle, content: newContent })
         setSaved(true)
+        // 成功寫入後清除 dirty 旗標，讓遠端更新可以再次同步
+        localDirtyRef.current = { title: false, content: false }
         setTimeout(() => setSaved(false), 2000)
-      } catch { /* silent */ } finally {
+      } catch (err) {
+        // Bug #23：save 失敗時顯示錯誤，讓使用者知道未儲存
+        setSaveError('筆記自動儲存失敗：' + (err?.message || '請檢查網路連線'))
+      } finally {
         setSaving(false)
       }
     }, 800)
   }, [tripId, noteId])
 
   const handleTitleChange = (e) => {
+    localDirtyRef.current.title = true
     setTitle(e.target.value)
     triggerAutoSave(e.target.value, content)
   }
 
   const handleContentChange = useCallback((val) => {
+    localDirtyRef.current.content = true
     setContent(val)
     triggerAutoSave(title, val)
   }, [title, triggerAutoSave])
@@ -252,8 +279,12 @@ export default function NoteDetail() {
           </div>
 
           {/* 儲存狀態 */}
-          <div style={{ fontSize: 12, fontWeight: 900, color: saving ? 'var(--text-muted)' : saved ? '#0F766E' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            {saving ? (
+          <div style={{ fontSize: 12, fontWeight: 900,
+            color: saveError ? '#DC2626' : saving ? 'var(--text-muted)' : saved ? '#0F766E' : 'var(--text-muted)',
+            display: 'flex', alignItems: 'center', gap: 6 }}>
+            {saveError ? (
+              <><AlertTriangle size={13} style={{ marginRight: 3 }} /> 儲存失敗</>
+            ) : saving ? (
               <>⏳ {t('note.saving')}</>
             ) : saved ? (
               <><CircleCheck size={14} style={{ marginRight: 3 }} /> {t('note.saved')}</>
@@ -271,6 +302,17 @@ export default function NoteDetail() {
       {/* 編輯區 */}
       <div style={{ flex: 1, display: 'flex', justifyContent: 'center', padding: 'clamp(16px, 4vw, 40px) clamp(12px, 3vw, 24px) 80px' }}>
         <div style={{ width: '100%', maxWidth: 720 }}>
+          {/* Bug #23：儲存錯誤 Banner */}
+          {saveError && (
+            <div style={{
+              marginBottom: 16, padding: '10px 14px', borderRadius: 12,
+              background: 'rgba(220,38,38,0.08)', border: '1.5px solid rgba(220,38,38,0.25)',
+              color: '#DC2626', fontSize: 13, fontWeight: 800,
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <AlertTriangle size={16} /> {saveError}
+            </div>
+          )}
           {/* 標題 */}
           <input
             type="text"

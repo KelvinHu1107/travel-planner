@@ -1,12 +1,23 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Map, Link } from 'lucide-react'
+import { Map, Link, AlertTriangle, X } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { collection, onSnapshot, query, where } from 'firebase/firestore'
+import { db } from '../services/firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { useViewMode } from '../contexts/ViewModeContext'
 import { createTrip, joinTrip, getUserTrips, deleteTrip, leaveTrip, addCard, cleanupDemoTrips } from '../services/firestore'
 import { getTripDuration } from '../utils/dateUtils'
 import { useTutorial } from '../tutorial/TutorialContext'
 import { useLanguage } from '../i18n/LanguageContext'
+
+// 判斷 trip 是否超過 30 天未瀏覽（Bug #13）
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+function isStaleTrip(t, currentUid) {
+  if (!t.lastVisitedAt || t.ownerId !== currentUid) return false
+  const ms = t.lastVisitedAt?.toDate?.()?.getTime()
+    ?? (t.lastVisitedAt?.seconds ? t.lastVisitedAt.seconds * 1000 : 0)
+  return ms > 0 && Date.now() - ms > THIRTY_DAYS_MS
+}
 
 function ErrorBanner({ message }) {
   if (!message) return null
@@ -36,7 +47,11 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave, isMobileMode 
       data-tutorial-id={tutorialId}
       onClick={() => { if (menuOpen) { setMenuOpen(false); return } if (!confirmDel && !confirmLeave) onClick() }}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { setHovered(false); setMenuOpen(false) }}
+      onMouseLeave={() => {
+        setHovered(false)
+        // Bug #38：延遲關閉選單，避免游標移出後選單瞬間消失無法點擊
+        setTimeout(() => setMenuOpen(false), 150)
+      }}
       style={{
         borderRadius: 22, overflow: 'hidden', cursor: 'pointer',
         border: '2px solid rgba(165,125,65,0.25)',
@@ -194,10 +209,15 @@ function CreateModal({ uid, onClose, onCreated }) {
     e.preventDefault()
     setError('')
     if (form.startDate > form.endDate) { setError(t('create.error.dateOrder')); return }
+    // Bug #24：日期範圍最多 60 天（Bug #15：使用 Math.round 避免 DST 導致 off-by-one）
+    const days = Math.round((new Date(form.endDate) - new Date(form.startDate)) / (24 * 60 * 60 * 1000)) + 1
+    if (days > 60) { setError('日期範圍最多 60 天，請縮短行程時間'); return }
+    // Bug #29：trip name 長度限制
+    if (form.tripName.trim().length > 50) { setError('計畫名稱最多 50 個字'); return }
     setLoading(true)
     try {
       const code = await createTrip({
-        name: form.tripName, startDate: form.startDate, endDate: form.endDate, uid,
+        name: form.tripName.trim(), startDate: form.startDate, endDate: form.endDate, uid,
       })
       // 自動新增範例卡片，幫助新使用者了解各類型功能
       try {
@@ -236,6 +256,7 @@ function CreateModal({ uid, onClose, onCreated }) {
           <div>
             <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('create.label.name')}</label>
             <input className="game-input" type="text" placeholder={t('create.placeholder.name')}
+              maxLength={50}
               value={form.tripName} onChange={e => setForm({...form, tripName: e.target.value})} disabled={loading} required />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -266,7 +287,7 @@ function CreateModal({ uid, onClose, onCreated }) {
 }
 
 // ── 加入計畫 Modal ────────────────────────────
-function JoinModal({ uid, onClose, onJoined, initialCode = '' }) {
+function JoinModal({ uid, actor, onClose, onJoined, initialCode = '' }) {
   const navigate = useNavigate()
   const { t } = useLanguage()
   const hasAutoCode = !!initialCode
@@ -279,7 +300,7 @@ function JoinModal({ uid, onClose, onJoined, initialCode = '' }) {
     setError('')
     setLoading(true)
     try {
-      const trip = await joinTrip(code, uid)
+      const trip = await joinTrip(code, uid, actor)
       onJoined?.()
       navigate(`/trip/${trip.code}`)
     } catch (err) {
@@ -359,23 +380,8 @@ export default function Home() {
     setTripsLoading(true)
     try {
       const allTrips = await getUserTrips(currentUser.uid)
-
-      // 自動刪除「本人為擁有者且 30 天無人瀏覽」的旅遊計畫
-      const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
-      const now = Date.now()
-      const stale = allTrips.filter(t => {
-        if (!t.lastVisitedAt || t.ownerId !== currentUser.uid) return false
-        const ms = t.lastVisitedAt?.toDate?.()?.getTime()
-          ?? (t.lastVisitedAt?.seconds ? t.lastVisitedAt.seconds * 1000 : 0)
-        return ms > 0 && now - ms > THIRTY_DAYS_MS
-      })
-      if (stale.length > 0) {
-        await Promise.all(stale.map(t => deleteTrip(t.code, currentUser.uid).catch(() => {})))
-        const staleCodes = new Set(stale.map(t => t.code))
-        setTrips(allTrips.filter(t => !staleCodes.has(t.code)))
-      } else {
-        setTrips(allTrips)
-      }
+      // Bug #13：不再自動刪除，只列出並讓使用者手動選擇是否刪除
+      setTrips(allTrips)
     } catch (err) {
       console.error(err)
     } finally {
@@ -383,7 +389,25 @@ export default function Home() {
     }
   }
 
-  useEffect(() => { loadTrips() }, [currentUser])
+  // Bug #40：改用 onSnapshot 即時訂閱使用者所在的 trips
+  // 讓其他分頁 / 其他成員動作可以即時反映（例如朋友加入你創的 trip、你在另一個分頁刪除 trip 等）
+  useEffect(() => {
+    if (!currentUser?.uid) {
+      setTrips([])
+      setTripsLoading(false)
+      return
+    }
+    setTripsLoading(true)
+    const q = query(collection(db, 'trips'), where('members', 'array-contains', currentUser.uid))
+    const unsub = onSnapshot(q, (snap) => {
+      setTrips(snap.docs.map(d => ({ code: d.id, ...d.data() })))
+      setTripsLoading(false)
+    }, (err) => {
+      console.error(err)
+      setTripsLoading(false)
+    })
+    return () => unsub()
+  }, [currentUser?.uid])
 
   // Bug #3：讀取 URL 參數，自動打開加入計畫 Modal
   useEffect(() => {
@@ -408,11 +432,17 @@ export default function Home() {
   const handleDelete = async (tripCode) => {
     setActionError('')
     try {
-      await deleteTrip(tripCode, currentUser?.uid)
+      const actor = {
+        uid: currentUser?.uid,
+        displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
+      }
+      await deleteTrip(tripCode, currentUser?.uid, actor)
       setTrips(ts => ts.filter(t => t.code !== tripCode))
     } catch (err) {
       console.error(err)
-      setActionError(t('home.error.delete'))
+      // Bug #37：把 trip 名稱帶進錯誤訊息
+      const tripName = trips.find(x => x.code === tripCode)?.name || tripCode
+      setActionError(`${t('home.error.delete')}（${tripName}）`)
       setTimeout(() => setActionError(''), 4000)
     }
   }
@@ -455,6 +485,19 @@ export default function Home() {
     : regularTrips
 
   const showTutorialBanner = !tutorialCompleted && !tutorialActive && !tripsLoading && regularTrips.length === 0 && !bannerHidden
+
+  // Bug #13：超過 30 天未瀏覽的自有計畫，改為警告清單讓使用者決定是否刪除
+  const staleTrips = regularTrips.filter(t => isStaleTrip(t, currentUser?.uid))
+  // Bug #14 + #24：dismiss key 需等 currentUser.uid 就緒才決定；改用 localStorage（跨分頁共享）加日期做每日重置
+  const STALE_DISMISS_KEY = currentUser?.uid
+    ? `stale_warning_dismissed_${currentUser.uid}_${new Date().toISOString().slice(0, 10)}`
+    : null
+  const [staleWarningDismissed, setStaleWarningDismissed] = useState(false)
+  useEffect(() => {
+    if (!STALE_DISMISS_KEY) { setStaleWarningDismissed(false); return }
+    setStaleWarningDismissed(localStorage.getItem(STALE_DISMISS_KEY) === 'true')
+  }, [STALE_DISMISS_KEY])
+  const showStaleWarning = !tripsLoading && staleTrips.length > 0 && !staleWarningDismissed
 
   const ModeToggleBtn = () => (
     <button onClick={toggleMode} style={{
@@ -566,6 +609,74 @@ export default function Home() {
           fontSize: 13, fontWeight: 800, color: '#DC2626',
         }}>
           ⚠️ {actionError}
+        </div>
+      )}
+
+      {/* Bug #13：超過 30 天未瀏覽的自有計畫警告清單 */}
+      {showStaleWarning && (
+        <div style={{
+          margin: isMobileMode ? '12px 12px 0' : '16px 28px 0',
+          padding: '14px 18px', borderRadius: 16,
+          background: 'rgba(217,119,6,0.08)',
+          border: '2px solid rgba(217,119,6,0.30)',
+          display: 'flex', flexDirection: 'column', gap: 10,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AlertTriangle size={20} color="#B45309" />
+            <div style={{ flex: 1, fontSize: 13, fontWeight: 900, color: '#7C2D12' }}>
+              以下 {staleTrips.length} 個計畫超過 30 天未開啟，是否刪除？
+            </div>
+            <button
+              aria-label="關閉警告"
+              onClick={() => {
+                setStaleWarningDismissed(true)
+                if (STALE_DISMISS_KEY) localStorage.setItem(STALE_DISMISS_KEY, 'true')
+              }}
+              style={{
+                width: 26, height: 26, borderRadius: 8,
+                border: '1px solid rgba(120,60,10,0.20)',
+                background: 'transparent', color: '#7C2D12',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            ><X size={13} /></button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {staleTrips.map(t => (
+              <div key={t.code} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', borderRadius: 10,
+                background: 'rgba(255,252,244,0.85)',
+                border: '1px solid rgba(165,125,65,0.20)',
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--text-primary)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t.name}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>
+                    {t.startDate} – {t.endDate}
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate(`/trip/${t.code}`)}
+                  style={{
+                    padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 900,
+                    background: 'var(--bg-elevated)', border: '1.5px solid rgba(165,125,65,0.25)',
+                    color: 'var(--text-secondary)', cursor: 'pointer',
+                  }}
+                >保留</button>
+                <button
+                  onClick={() => handleDelete(t.code)}
+                  style={{
+                    padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 900,
+                    background: 'linear-gradient(135deg,#EF4444,#B91C1C)',
+                    boxShadow: '0 2px 0 #7F1D1D',
+                    color: '#fff', border: 'none', cursor: 'pointer',
+                  }}
+                >刪除</button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -720,6 +831,7 @@ export default function Home() {
       {modal === 'join' && (
         <JoinModal
           uid={currentUser?.uid}
+          actor={{ uid: currentUser?.uid, displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '' }}
           onClose={() => { setModal(null); setJoinParams({ code: '' }) }}
           onJoined={loadTrips}
           initialCode={joinParams.code}

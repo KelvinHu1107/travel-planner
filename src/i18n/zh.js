@@ -492,6 +492,32 @@ const zh = {
   'tutorial.finish':         '完成',
   'tutorial.step':           '步驟 {{current}} / {{total}}',
 
+  // ── Notifications ────────────────────────────────────
+  'notification.title':        '通知',
+  'notification.empty':        '目前沒有通知',
+  'notification.markAllRead':  '全部已讀',
+  'notification.loading':      '載入通知中…',
+  'notification.error':        '載入失敗，請稍後再試',
+  'notification.deleteConfirm':'確定刪除？',
+  'notification.deleteYes':    '刪除',
+  'notification.deleteNo':     '取消',
+  'notification.time.justNow': '剛剛',
+  'notification.time.minutes': '{{count}} 分鐘前',
+  'notification.time.hours':   '{{count}} 小時前',
+  'notification.time.days':    '{{count}} 天前',
+  'notification.cardAdded':    '{{actor}} 新增了行程「{{title}}」',
+  'notification.cardUpdated':  '{{actor}} 更新了行程「{{title}}」',
+  'notification.cardDeleted':  '{{actor}} 刪除了行程「{{title}}」',
+  'notification.memberJoined': '{{actor}} 加入了旅遊計畫',
+  'notification.tripDeleted':  '旅遊計畫「{{trip}}」已被刪除',
+  'notification.actor.default':'成員',
+  'notification.actor.newMember':'新成員',
+  'notification.card.default': '未命名',
+  'notification.trip.default': '未命名',
+
+  // ── LIFF ─────────────────────────────────────────────
+  'liff.initTimeout':          'LINE 瀏覽器初始化逾時，部分功能可能受限',
+
   // ── Error messages ────────────────────────────────────
   'error.pageLoad':          '發生錯誤，請重新整理頁面',
   'error.reload':            '重新整理',

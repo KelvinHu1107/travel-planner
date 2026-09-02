@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ViewModeProvider } from './contexts/ViewModeContext'
 import { TutorialProvider } from './tutorial/TutorialContext'
 import { LanguageProvider } from './i18n/LanguageContext'
+import { NotificationProvider } from './hooks/useNotifications'
 import TutorialOverlay from './tutorial/TutorialOverlay'
 import Home from './pages/Home'
 import TripBoard from './pages/TripBoard'
@@ -24,12 +25,34 @@ function LiffInitializer({ children }) {
     const p = new URLSearchParams(window.location.search)
     return !p.has('liff.state') && !p.has('liffClientId')
   })
+  // Bug #35：區分 success/timeout；timeout 時顯示可關閉 banner，App 仍可用
+  const [liffTimedOut, setLiffTimedOut] = useState(false)
+  const [bannerDismissed, setBannerDismissed] = useState(false)
 
   useEffect(() => {
     if (ready) return
-    import('@line/liff')
-      .then(({ default: liff }) => liff.init({ liffId: import.meta.env.VITE_LIFF_ID }))
-      .catch(() => setReady(true))
+    // Bug #35：liff.init() 加 10 秒 timeout，避免無限 loading
+    const TIMEOUT_MARK = Symbol('liff-timeout')
+    const timeoutPromise = new Promise((resolve) =>
+      setTimeout(() => resolve(TIMEOUT_MARK), 10000)
+    )
+    Promise.race([
+      import('@line/liff').then(({ default: liff }) =>
+        liff.init({ liffId: import.meta.env.VITE_LIFF_ID })
+      ),
+      timeoutPromise,
+    ])
+      .then((result) => {
+        if (result === TIMEOUT_MARK) {
+          setLiffTimedOut(true)
+          console.warn('[LIFF init] timeout after 10s — app continues in degraded mode')
+        }
+        setReady(true)
+      })
+      .catch((err) => {
+        console.error('[LIFF init]', err)
+        setReady(true)
+      })
       // liff.init() navigates away via window.location.replace() — setReady never runs in that case
   }, [ready])
 
@@ -42,7 +65,33 @@ function LiffInitializer({ children }) {
     )
   }
 
-  return children
+  return (
+    <>
+      {liffTimedOut && !bannerDismissed && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
+          padding: '10px 16px',
+          background: 'rgba(146,64,14,0.95)', color: '#FFF7ED',
+          fontSize: 13, fontWeight: 900, textAlign: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+        }}>
+          <span>⚠️ LINE 瀏覽器初始化逾時，部分功能可能受限</span>
+          <button
+            onClick={() => setBannerDismissed(true)}
+            aria-label="關閉"
+            style={{
+              width: 22, height: 22, borderRadius: 6, border: 'none',
+              background: 'rgba(255,255,255,0.20)', color: '#fff',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 900,
+            }}
+          >×</button>
+        </div>
+      )}
+      {children}
+    </>
+  )
 }
 
 function ProtectedRoute({ children }) {
@@ -59,6 +108,13 @@ function ProtectedRoute({ children }) {
     return <Navigate to={`/auth?redirect=${encodeURIComponent(redirectTo)}`} replace />
   }
   return children
+}
+
+// Bug #8：AuthProvider 內部 wrapper，將 currentUser.uid 傳入 NotificationProvider
+// 讓桌面/手機版共用同一份通知訂閱
+function NotificationsScope({ children }) {
+  const { currentUser } = useAuth()
+  return <NotificationProvider uid={currentUser?.uid ?? null}>{children}</NotificationProvider>
 }
 
 function AppRoutes() {
@@ -95,10 +151,12 @@ export default function App() {
         <LanguageProvider>
           <ViewModeProvider>
             <AuthProvider>
-              <TutorialProvider>
-                <AppRoutes />
-                <TutorialOverlay />
-              </TutorialProvider>
+              <NotificationsScope>
+                <TutorialProvider>
+                  <AppRoutes />
+                  <TutorialOverlay />
+                </TutorialProvider>
+              </NotificationsScope>
             </AuthProvider>
           </ViewModeProvider>
         </LanguageProvider>

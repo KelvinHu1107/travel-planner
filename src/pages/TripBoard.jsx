@@ -7,7 +7,8 @@ import {
   PointerSensor, useSensor, useSensors,
 } from '@dnd-kit/core'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { storage } from '../services/firebase'
+import { doc, onSnapshot } from 'firebase/firestore'
+import { db, storage } from '../services/firebase'
 import {
   getTrip, addCard, updateCard, deleteCard, subscribeToCards, updateTrip,
   deleteTrip, leaveTrip, getMemberProfiles, clearAllCards,
@@ -22,6 +23,15 @@ import {
   Key, Users, User, Info, AlertTriangle, Frown,
 } from 'lucide-react'
 import { CopyLinkButton, FullscreenButton } from '../components/ui/TopBarActions'
+import NotificationBell from '../components/ui/NotificationBell'
+
+// Bug #31：PDF/HTML escape helper
+const escHtml = s => String(s ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;')
 import { getTripDuration, getDaysInRange } from '../utils/dateUtils'
 import { loadGoogleMaps } from '../services/maps'
 import BoardLayout from '../components/board/BoardLayout'
@@ -128,6 +138,9 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
     const { startDate, endDate } = newForm
     if (!startDate || !endDate) return
     if (startDate > endDate) { setEditError(t('create.error.dateOrder')); return }
+    // Bug #24：日期範圍最多 60 天（Bug #15：使用 Math.round 避免 DST 導致 off-by-one）
+    const days = Math.round((new Date(endDate) - new Date(startDate)) / (24 * 60 * 60 * 1000)) + 1
+    if (days > 60) { setEditError('日期範圍最多 60 天，請縮短行程時間'); return }
     if (startDate === trip?.startDate && endDate === trip?.endDate) return
     setEditSaving(true)
     try {
@@ -136,6 +149,10 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
       setEditSuccess(true); setTimeout(() => setEditSuccess(false), 2000)
     } catch { setEditError(t('settings.trip.error.date')) } finally { setEditSaving(false) }
   }
+
+  // Bug #18/#20/#21：加 loading state
+  const [busyAction, setBusyAction] = useState(null) // 'clear' | 'delete' | 'leave' | null
+  const [bgError, setBgError] = useState('')
 
   const handleChangePassword = async (e) => {
     e.preventDefault()
@@ -148,7 +165,20 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
       setPwSuccess(t('settings.account.pw.success'))
       setPwForm({ current: '', next: '', confirm: '' })
     } catch (err) {
-      setPwError(err.code === 'auth/wrong-password' ? t('settings.account.pw.error.wrong') : t('settings.account.pw.error.failed'))
+      // Bug #37：更多 Firebase Auth 錯誤碼
+      let msg
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        msg = t('settings.account.pw.error.wrong')
+      } else if (err.code === 'auth/too-many-requests') {
+        msg = '嘗試次數過多，請稍後再試'
+      } else if (err.code === 'auth/requires-recent-login') {
+        msg = '為了安全考量，請重新登入後再嘗試變更密碼'
+      } else if (err.code === 'auth/weak-password') {
+        msg = '新密碼強度不足，請使用至少 6 個字元'
+      } else {
+        msg = t('settings.account.pw.error.failed')
+      }
+      setPwError(msg)
     } finally { setPwLoading(false) }
   }
 
@@ -156,6 +186,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
     const file = e.target.files[0]
     if (!file) return
     setUploading(true)
+    setBgError('')
     try {
       const path = `trips/${tripId}/background`
       const fileRef = storageRef(storage, path)
@@ -164,28 +195,58 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
       await updateTrip(tripId, { backgroundImage: url })
       await addStorageUsedBytes(tripId, snapshot.metadata.size)
       onBgChange(url)
-    } catch (err) { console.error(err) } finally { setUploading(false) }
+    } catch (err) {
+      console.error(err)
+      // Bug #21：失敗顯示錯誤
+      setBgError('背景圖片上傳失敗：' + (err?.message || '未知錯誤'))
+    } finally { setUploading(false) }
   }
 
   const handleClearBg = async () => {
-    await updateTrip(tripId, { backgroundImage: null })
-    onBgChange(null)
+    try {
+      await updateTrip(tripId, { backgroundImage: null })
+      onBgChange(null)
+    } catch (err) {
+      setBgError('清除背景失敗：' + (err?.message || '未知錯誤'))
+    }
   }
 
   const handleClearCards = async () => {
-    await clearAllCards(tripId)
-    setConfirmClear(false)
-    onClose()
+    setBusyAction('clear')
+    try {
+      await clearAllCards(tripId)
+      setConfirmClear(false)
+      onClose()
+    } catch (err) {
+      console.error(err)
+      setEditError('清空卡片失敗：' + (err?.message || '未知錯誤'))
+    } finally { setBusyAction(null) }
   }
 
   const handleDeleteTrip = async () => {
-    await deleteTrip(tripId, currentUser?.uid)
-    navigate('/', { replace: true })
+    setBusyAction('delete')
+    try {
+      const actor = {
+        uid: currentUser?.uid,
+        displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
+      }
+      await deleteTrip(tripId, currentUser?.uid, actor)
+      navigate('/', { replace: true })
+    } catch (err) {
+      console.error(err)
+      setEditError('刪除計畫失敗：' + (err?.message || '未知錯誤'))
+    } finally { setBusyAction(null) }
   }
 
   const handleLeaveTrip = async () => {
-    await leaveTrip(tripId, currentUser?.uid)
-    navigate('/', { replace: true })
+    setBusyAction('leave')
+    try {
+      await leaveTrip(tripId, currentUser?.uid)
+      navigate('/', { replace: true })
+    } catch (err) {
+      console.error(err)
+      setEditError('離開計畫失敗：' + (err?.message || '未知錯誤'))
+    } finally { setBusyAction(null) }
   }
 
   const TABS = [
@@ -271,6 +332,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>{t('settings.trip.name')}</label>
                   <input className="game-input" type="text" value={editForm.name}
+                    maxLength={50}
                     onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
                     onBlur={handleNameBlur} />
                 </div>
@@ -314,6 +376,13 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                   {uploading ? t('settings.trip.uploading') : t('settings.trip.uploadBg')}
                   <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBgUpload} disabled={uploading} />
                 </label>
+                {bgError && (
+                  <div style={{ marginTop: 8, fontSize: 12, fontWeight: 800, color: '#DC2626',
+                    padding: '8px 12px', background: 'rgba(220,38,38,0.08)',
+                    border: '1px solid rgba(220,38,38,0.22)', borderRadius: 10 }}>
+                    ⚠️ {bgError}
+                  </div>
+                )}
               </div>
 
               {/* 危險操作 */}
@@ -332,7 +401,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                       <span style={{ fontSize: 12, fontWeight: 800, color: '#DC2626', flex: 1 }}>{t('settings.danger.confirmClear')}</span>
                       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                         <button onClick={() => setConfirmClear(false)} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 11, fontWeight: 900, cursor: 'pointer', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t('common.cancel')}</button>
-                        <button onClick={handleClearCards} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t('common.confirm.clear')}</button>
+                        <button onClick={handleClearCards} disabled={busyAction === 'clear'} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 900, cursor: busyAction === 'clear' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: busyAction === 'clear' ? 0.7 : 1 }}>{busyAction === 'clear' ? '處理中…' : t('common.confirm.clear')}</button>
                       </div>
                     </div>
                   )}
@@ -349,7 +418,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                         <span style={{ fontSize: 12, fontWeight: 800, color: '#DC2626', flex: 1 }}>{t('settings.danger.confirmDelete')}</span>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                           <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 11, fontWeight: 900, cursor: 'pointer', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t('common.cancel')}</button>
-                          <button onClick={handleDeleteTrip} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#B91C1C', color: '#fff', fontSize: 11, fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t('common.confirm.delete')}</button>
+                          <button onClick={handleDeleteTrip} disabled={busyAction === 'delete'} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#B91C1C', color: '#fff', fontSize: 11, fontWeight: 900, cursor: busyAction === 'delete' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: busyAction === 'delete' ? 0.7 : 1 }}>{busyAction === 'delete' ? '刪除中…' : t('common.confirm.delete')}</button>
                         </div>
                       </div>
                     )
@@ -366,7 +435,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                         <span style={{ fontSize: 12, fontWeight: 800, color: '#DC2626', flex: 1 }}>{t('settings.danger.confirmLeave')}</span>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                           <button onClick={() => setConfirmLeave(false)} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 11, fontWeight: 900, cursor: 'pointer', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t('common.cancel')}</button>
-                          <button onClick={handleLeaveTrip} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t('common.confirm.leave')}</button>
+                          <button onClick={handleLeaveTrip} disabled={busyAction === 'leave'} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 900, cursor: busyAction === 'leave' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: busyAction === 'leave' ? 0.7 : 1 }}>{busyAction === 'leave' ? '離開中…' : t('common.confirm.leave')}</button>
                         </div>
                       </div>
                     )
@@ -989,6 +1058,7 @@ function TopBar({ trip, tripId, onShowSettings, isMobile, onToggleSidebar, sideb
           )}
           <CopyLinkButton />
           <FullscreenButton />
+          <NotificationBell isMobile={isMobile} />
           <button className="btn-game btn-ghost"
             style={{ padding: isMobile ? '8px 10px' : '10px 14px', fontSize: 14,
               display: 'flex', alignItems: 'center' }}
@@ -1203,6 +1273,7 @@ function MobileTopBar({ trip, tripId, navigate, onSettings, toggleMode, isMobile
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <NotificationBell isMobile={true} />
         <button onClick={toggleMode} style={{
           padding: '5px 9px', borderRadius: 9,
           border: '1.5px solid rgba(165,125,65,0.28)',
@@ -1881,6 +1952,12 @@ export default function TripBoard() {
   const [shakingCardIds, setShakingCardIds]   = useState([])
   const [viewMode, setViewMode]           = useState('timeline') // 'timeline' | 'list'
   const [pdfToast, setPdfToast]           = useState(false)
+  // Bug #10/#12：全域 toast 系統
+  const [toast, setToast]                 = useState(null) // { message, kind }
+  const showToast = useCallback((message, kind = 'info') => {
+    setToast({ message, kind })
+    setTimeout(() => setToast(null), 3500)
+  }, [])
   // Mobile-only state — persisted so navigating to checklist/packing and back restores the selected day
   const mobileDayKey = `board-mobile-day-${tripId}`
   const [mobileDay, setMobileDayRaw] = useState(() => {
@@ -1904,10 +1981,14 @@ export default function TripBoard() {
   )
 
   useEffect(() => {
-    let unsub = null
+    // Bug #13：加 cancelled 旗標，避免 async getTrip 完成後 useEffect 已 unmount 卻仍建立訂閱洩漏
+    let cancelled = false
+    let unsubCards = null
+    let unsubTrip = null
 
     getTrip(tripId)
       .then(async data => {
+        if (cancelled) return
         // 若 trip 有 members 欄位，檢查目前用戶是否是成員
         if (data.members?.length && currentUser && !data.members.includes(currentUser.uid)) {
           setError('你不是此旅遊計畫的成員')
@@ -1927,7 +2008,7 @@ export default function TripBoard() {
         }
 
         // 訂閱即時卡片更新（Bug #9：加 error handler，trip 被刪時導向首頁）
-        unsub = subscribeToCards(tripId, (liveCards) => {
+        unsubCards = subscribeToCards(tripId, (liveCards) => {
           setCards(liveCards)
         }, (err) => {
           if (err.code === 'permission-denied' || err.code === 'not-found') {
@@ -1935,12 +2016,51 @@ export default function TripBoard() {
             setTimeout(() => navigate('/'), 3000)
           }
         })
-      })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
 
-    return () => unsub?.()
-  }, [tripId, navigate])
+        // Bug #10/#12：訂閱 trip doc 本身
+        // - 若 trip doc 不存在：其他人刪了 trip → toast + 導向首頁
+        // - 若目前使用者不在 members 內：被踢出 → toast + 導向首頁
+        unsubTrip = onSnapshot(doc(db, 'trips', tripId), (snap) => {
+          if (!snap.exists()) {
+            // Bug #10
+            showToast('此旅遊計畫已被其他成員刪除', 'warning')
+            setTimeout(() => navigate('/', { replace: true }), 1500)
+            return
+          }
+          const latest = snap.data()
+          setTrip(prev => prev ? { ...prev, ...latest } : { code: tripId, ...latest })
+          // Bug #26：currentUser.uid 尚未就緒時（例如 auth 還在載入），不要誤判為被踢出
+          if (!currentUser?.uid) return
+          if (Array.isArray(latest.members) && !latest.members.includes(currentUser.uid)) {
+            // Bug #12
+            showToast('你已被移出此旅遊計畫', 'warning')
+            setTimeout(() => navigate('/', { replace: true }), 1500)
+          }
+        }, (err) => {
+          if (err.code === 'permission-denied' || err.code === 'not-found') {
+            showToast('已失去此旅遊計畫的存取權限', 'warning')
+            setTimeout(() => navigate('/', { replace: true }), 1500)
+          }
+        })
+
+        // 若在建立訂閱過程中已 cancel，立即清掉
+        if (cancelled) {
+          unsubCards?.()
+          unsubTrip?.()
+          unsubCards = null
+          unsubTrip = null
+        }
+      })
+      .catch(e => { if (!cancelled) setError(e.message) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+
+    return () => {
+      cancelled = true
+      unsubCards?.()
+      unsubTrip?.()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId, navigate, currentUser?.uid])
 
   useEffect(() => {
     if (trip?.isDemoTrip && !tutorialActive) {
@@ -1970,6 +2090,12 @@ export default function TripBoard() {
     setTimeout(() => setShakingCardIds([]), 600)
   }, [])
 
+  // 觸發通知用的 actor 資料
+  const actor = useMemo(() => ({
+    uid: currentUser?.uid,
+    displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
+  }), [currentUser?.uid, currentUser?.displayName, currentUser?.email])
+
   const handleDragEnd = useCallback(async ({ active, delta, over }) => {
     setDraggingCard(null)
     if (!trip) return
@@ -1977,7 +2103,7 @@ export default function TripBoard() {
     if (!card) return
 
     if (over?.id === 'trash-zone') {
-      await deleteCard(tripId, card.id)
+      await deleteCard(tripId, card.id, actor)
       return
     }
 
@@ -2009,15 +2135,16 @@ export default function TripBoard() {
     }
 
     triggerDropBounce(active.id)
+    // 拖曳只是位置調整，通知會過度干擾其他成員 → 不觸發通知
     await updateCard(tripId, card.id, {
       day: newDay,
       startTime: minutesToTime(newMin),
     })
     if (tutorialActive && currentStepData?.id === 'drag-drop') nextStep()
-  }, [trip, cards, tripId, tutorialActive, currentStepData, nextStep])
+  }, [trip, cards, tripId, tutorialActive, currentStepData, nextStep, actor])
 
   const handleAddCard = useCallback(async (data, pendingNearby) => {
-    const newId = await addCard(tripId, data)
+    const newId = await addCard(tripId, data, actor)
 
     if (pendingNearby) {
       const mainStart = timeToMinutes(data.startTime)
@@ -2037,22 +2164,23 @@ export default function TripBoard() {
         placeId: pendingNearby.place.placeId,
         photo: pendingNearby.place.photo ?? null,
         rating: pendingNearby.place.rating ?? null,
-      })
+      }, actor)
     }
-  }, [tripId, navigate])
+  }, [tripId, navigate, actor])
 
   const handleDeleteCard = useCallback(async (id) => {
-    await deleteCard(tripId, id)
-  }, [tripId])
+    await deleteCard(tripId, id, actor)
+  }, [tripId, actor])
 
   const handleEditCard = useCallback(async (updatedCard) => {
     const { id, createdAt, ...updates } = updatedCard
-    await updateCard(tripId, id, updates)
+    await updateCard(tripId, id, updates, actor)
     setDetailCard(null)
-  }, [tripId])
+  }, [tripId, actor])
 
 
   const handleUpdateCard = useCallback(async (cardId, updates) => {
+    // 小型更新（如附加圖片/待辦/勾選）不觸發通知，避免過度打擾
     await updateCard(tripId, cardId, updates)
   }, [tripId])
 
@@ -2078,13 +2206,14 @@ export default function TripBoard() {
   const handleSeedCards = useCallback(async () => {
     if (!trip) return
     const seeds = makeSeedCards(trip.startDate)
+    // 種子卡片是本地初始化，不觸發通知
     await Promise.all(seeds.map(c => addCard(tripId, c)))
   }, [trip, tripId])
 
   const handleCopyCard = useCallback(async (card, targetDays) => {
     const { id, createdAt, day, ...cardData } = card
-    await Promise.all(targetDays.map(d => addCard(tripId, { ...cardData, day: d })))
-  }, [tripId])
+    await Promise.all(targetDays.map(d => addCard(tripId, { ...cardData, day: d }, actor)))
+  }, [tripId, actor])
 
   const handleExportPDF = useCallback(() => {
     setPdfToast(true)
@@ -2098,10 +2227,11 @@ export default function TripBoard() {
 
     const TYPE_ICON = { attraction: '📍', transport: '🚌' }
 
+    // Bug #31：所有嵌入 HTML 的字串都要 escape，防止 XSS
     const html = `<!DOCTYPE html>
 <html lang="zh-TW"><head>
 <meta charset="utf-8"/>
-<title>${trip.name} — 旅遊行程</title>
+<title>${escHtml(trip.name)} — 旅遊行程</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #2B1709; background: #FAF6ED; padding: 40px; font-size: 13px; }
@@ -2118,29 +2248,29 @@ export default function TripBoard() {
   @media print { body { padding: 20px; } }
 </style>
 </head><body>
-<h1>✈️ ${trip.name}</h1>
-<p class="meta">${trip.startDate} – ${trip.endDate}　共 ${getTripDuration(trip.startDate, trip.endDate)} 天</p>
+<h1>✈️ ${escHtml(trip.name)}</h1>
+<p class="meta">${escHtml(trip.startDate)} – ${escHtml(trip.endDate)}　共 ${getTripDuration(trip.startDate, trip.endDate)} 天</p>
 
 ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
 <div class="day-block">
-  <div class="day-header">🗓️ ${day}</div>
+  <div class="day-header">🗓️ ${escHtml(day)}</div>
   ${dc.map(c => `
   <div class="card-row">
-    <div class="card-time">${c.startTime}</div>
-    <div class="card-icon">${TYPE_ICON[c.type] ?? '📌'}</div>
+    <div class="card-time">${escHtml(c.startTime)}</div>
+    <div class="card-icon">${escHtml(TYPE_ICON[c.type] ?? '📌')}</div>
     <div>
-      <div class="card-title">${c.title ?? ''}</div>
+      <div class="card-title">${escHtml(c.title ?? '')}</div>
       <div class="card-sub">${
-        c.type === 'transport' ? (c.from && c.to ? `${c.from} → ${c.to}` : '') :
-        c.type === 'attraction' ? (c.address ?? '') :
-        (c.content ? c.content.slice(0, 80) : '')
+        c.type === 'transport' ? (c.from && c.to ? `${escHtml(c.from)} → ${escHtml(c.to)}` : '') :
+        c.type === 'attraction' ? escHtml(c.address ?? '') :
+        (c.content ? escHtml(c.content.slice(0, 80)) : '')
       }</div>
     </div>
   </div>`).join('')}
 </div>`).join('')}
 
 
-<div class="footer">由 TripTogether 匯出 · ${new Date().toLocaleDateString('zh-TW')}</div>
+<div class="footer">由 TripTogether 匯出 · ${escHtml(new Date().toLocaleDateString('zh-TW'))}</div>
 </body></html>`
 
     const win = window.open('', '_blank')
@@ -2241,6 +2371,23 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
           whiteSpace: 'nowrap',
         }}>
           📄 PDF 預覽即將開啟，請在列印對話框選「另存為 PDF」
+        </div>
+      )}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 400, padding: '12px 22px', borderRadius: 14,
+          maxWidth: 'calc(100vw - 32px)',
+          background: toast.kind === 'warning' ? 'rgba(254,242,242,0.98)' : 'rgba(250,246,234,0.98)',
+          border: toast.kind === 'warning' ? '1.5px solid rgba(220,38,38,0.35)' : '1.5px solid rgba(165,125,65,0.35)',
+          boxShadow: '0 8px 32px rgba(80,40,5,0.25)',
+          fontSize: 13, fontWeight: 900,
+          color: toast.kind === 'warning' ? '#B91C1C' : 'var(--text-secondary)',
+          backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <AlertTriangle size={16} />
+          {toast.message}
         </div>
       )}
     </>
