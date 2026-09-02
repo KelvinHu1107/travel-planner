@@ -4,6 +4,21 @@ import {
   arrayUnion, arrayRemove, increment, getDocs, where, runTransaction,
 } from 'firebase/firestore'
 import { db } from './firebase'
+import {
+  notifyCardAdded, notifyCardUpdated, notifyCardDeleted,
+  notifyMemberJoined, notifyTripDeleted, deleteNotificationsByTrip,
+} from './notificationService'
+
+// 提供給呼叫端傳入的觸發者資訊（optional actor）
+// 用來讓通知系統知道是誰做的操作
+async function getTripMeta(tripId) {
+  try {
+    const snap = await getDoc(doc(db, 'trips', tripId))
+    if (!snap.exists()) return null
+    const d = snap.data()
+    return { members: d.members ?? [], name: d.name ?? '' }
+  } catch { return null }
+}
 
 // 產生 6 碼易讀邀請碼（去掉 0/O/1/I 避免混淆）
 function generateTripCode() {
@@ -102,21 +117,35 @@ export async function createTrip({ name, startDate, endDate, uid }) {
 }
 
 // 加入旅遊計畫（僅需邀請代碼）
-export async function joinTrip(code, uid) {
-  const snap = await getDoc(doc(db, 'trips', code.toUpperCase()))
+// actor: { uid, displayName } — 觸發通知用
+export async function joinTrip(code, uid, actor = null) {
+  const upperCode = code.toUpperCase()
+  const snap = await getDoc(doc(db, 'trips', upperCode))
 
   if (!snap.exists()) {
     throw new Error('找不到這個旅遊計畫，請確認邀請代碼是否正確')
   }
 
   const data = snap.data()
+  const wasAlreadyMember = uid && Array.isArray(data.members) && data.members.includes(uid)
 
   if (uid) {
-    await updateDoc(doc(db, 'trips', code.toUpperCase()), { members: arrayUnion(uid) })
-    await updateDoc(doc(db, 'users', uid), { tripCodes: arrayUnion(code.toUpperCase()) })
+    await updateDoc(doc(db, 'trips', upperCode), { members: arrayUnion(uid) })
+    await updateDoc(doc(db, 'users', uid), { tripCodes: arrayUnion(upperCode) })
   }
 
-  return { code: code.toUpperCase(), ...data }
+  // Bug #6/#7：通知走 fire-and-forget，不 block 加入流程
+  if (uid && !wasAlreadyMember) {
+    notifyMemberJoined({
+      members: data.members ?? [],
+      actorUid: uid,
+      actorName: actor?.displayName || '新成員',
+      tripId: upperCode,
+      tripName: data.name ?? '',
+    }).catch(() => {})
+  }
+
+  return { code: upperCode, ...data }
 }
 
 // 讀取旅遊計畫資料（已驗證後使用）
@@ -132,21 +161,80 @@ function cardsCol(tripId) {
   return collection(db, 'trips', tripId, 'cards')
 }
 
-export async function addCard(tripId, cardData) {
+export async function addCard(tripId, cardData, actor = null) {
   const { id: _ignore, ...data } = cardData
   const ref = await addDoc(cardsCol(tripId), {
     ...data,
     createdAt: serverTimestamp(),
   })
+  // Bug #6/#7：通知走 fire-and-forget，不 block 使用者寫入流程
+  if (actor?.uid) {
+    getTripMeta(tripId).then(meta => {
+      if (!meta) return
+      notifyCardAdded({
+        members: meta.members,
+        actorUid: actor.uid,
+        actorName: actor.displayName || '成員',
+        tripId,
+        tripName: meta.name,
+        cardTitle: data.title || '未命名',
+      }).catch(() => {})
+    }).catch(() => {})
+  }
   return ref.id
 }
 
-export async function updateCard(tripId, cardId, updates) {
+export async function updateCard(tripId, cardId, updates, actor = null) {
   await updateDoc(doc(db, 'trips', tripId, 'cards', cardId), updates)
+  // Bug #6/#7：通知走 fire-and-forget
+  if (actor?.uid) {
+    (async () => {
+      const meta = await getTripMeta(tripId)
+      let cardTitle = updates.title || ''
+      if (!cardTitle) {
+        try {
+          const cs = await getDoc(doc(db, 'trips', tripId, 'cards', cardId))
+          cardTitle = cs.exists() ? (cs.data().title || '') : ''
+        } catch {}
+      }
+      if (meta) {
+        notifyCardUpdated({
+          members: meta.members,
+          actorUid: actor.uid,
+          actorName: actor.displayName || '成員',
+          tripId,
+          tripName: meta.name,
+          cardTitle: cardTitle || '未命名',
+        }).catch(() => {})
+      }
+    })().catch(() => {})
+  }
 }
 
-export async function deleteCard(tripId, cardId) {
+export async function deleteCard(tripId, cardId, actor = null) {
+  // 先讀取卡片標題（在刪除前，避免拿不到）
+  let cardTitle = ''
+  if (actor?.uid) {
+    try {
+      const cs = await getDoc(doc(db, 'trips', tripId, 'cards', cardId))
+      if (cs.exists()) cardTitle = cs.data().title || ''
+    } catch {}
+  }
   await deleteDoc(doc(db, 'trips', tripId, 'cards', cardId))
+  // Bug #6/#7：通知走 fire-and-forget
+  if (actor?.uid) {
+    getTripMeta(tripId).then(meta => {
+      if (!meta) return
+      notifyCardDeleted({
+        members: meta.members,
+        actorUid: actor.uid,
+        actorName: actor.displayName || '成員',
+        tripId,
+        tripName: meta.name,
+        cardTitle: cardTitle || '未命名',
+      }).catch(() => {})
+    }).catch(() => {})
+  }
 }
 
 export async function getCard(tripId, cardId) {
@@ -190,9 +278,23 @@ export async function addStorageUsedBytes(tripId, bytes) {
 }
 
 // 刪除整個旅遊計畫（含所有子集合，並清理所有成員的 tripCodes）（Bug #10）
-export async function deleteTrip(tripId, uid) {
+// actor: { uid, displayName } — 用於發送「trip 已被刪除」通知給其他成員
+export async function deleteTrip(tripId, uid, actor = null) {
   const tripSnap = await getDoc(doc(db, 'trips', tripId))
   const members = tripSnap.exists() ? (tripSnap.data().members ?? []) : []
+  const tripName = tripSnap.exists() ? (tripSnap.data().name ?? '') : ''
+
+  // Bug #6/#7：通知走 fire-and-forget，不 block 刪除流程
+  // 注意：仍在刪除前觸發，這樣通知的建立時機還來得及
+  if (actor?.uid && members.length > 0) {
+    notifyTripDeleted({
+      members,
+      actorUid: actor.uid,
+      actorName: actor.displayName || '成員',
+      tripId,
+      tripName,
+    }).catch(() => {})
+  }
 
   const [cardsSnap, todosSnap, packingSnap, expensesSnap] = await Promise.all([
     getDocs(cardsCol(tripId)),
@@ -208,12 +310,25 @@ export async function deleteTrip(tripId, uid) {
   ])
   await deleteDoc(doc(db, 'trips', tripId))
 
-  // 清理所有成員的 tripCodes（Bug #10）
-  await Promise.all(
-    members.map(memberId =>
-      updateDoc(doc(db, 'users', memberId), { tripCodes: arrayRemove(tripId) }).catch(() => {})
+  // Bug #4：只能清理自己的 tripCodes（Firestore rules 不允許寫其他人的 users doc）
+  // 其他成員的 tripCodes 會有殘留，但當他們開啟已刪除的 trip 時會顯示「找不到」，可自行離開
+  if (uid) {
+    await updateDoc(doc(db, 'users', uid), { tripCodes: arrayRemove(tripId) }).catch(() => {})
+  }
+
+  // Bug #9：刪除此 trip 相關的既有通知，包含 trip_deleted，避免重試累積重複
+  try {
+    const q = query(
+      collection(db, 'notifications'),
+      where('tripId', '==', tripId),
+      where('type', 'in', ['card_added', 'card_updated', 'card_deleted', 'member_joined', 'trip_auto_delete_warning', 'trip_deleted'])
     )
-  )
+    const snap = await getDocs(q)
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref).catch(() => {})))
+  } catch {
+    // 若 in 查詢失敗（如舊 SDK），fallback 刪除全部
+    try { await deleteNotificationsByTrip(tripId) } catch {}
+  }
 }
 
 // 更新旅遊計畫最後瀏覽時間
@@ -357,13 +472,27 @@ export async function attachNoteToCard(tripId, targetCardId, noteItem, sourceNot
   }
 }
 
-// 用 transaction 更新附加筆記，防止並發覆蓋
-export async function saveAttachedNotes(tripId, cardId, notes) {
+// Bug #11：用 transaction 依 note.id 執行 add/edit/delete，避免用整個陣列覆寫造成並發資料遺失
+// op: { kind: 'add', note }
+//   | { kind: 'edit', id, patch }
+//   | { kind: 'delete', id }
+export async function saveAttachedNotes(tripId, cardId, op) {
   const ref = doc(db, 'trips', tripId, 'cards', cardId)
   await runTransaction(db, async tx => {
     const snap = await tx.get(ref)
     if (!snap.exists()) return
-    tx.update(ref, { attachedNotes: notes })
+    const current = Array.isArray(snap.data().attachedNotes) ? snap.data().attachedNotes : []
+    let next = current
+    if (op?.kind === 'add' && op.note) {
+      next = [...current, op.note]
+    } else if (op?.kind === 'edit' && op.id) {
+      next = current.map(n => n?.id === op.id ? { ...n, ...op.patch } : n)
+    } else if (op?.kind === 'delete' && op.id) {
+      next = current.filter(n => n?.id !== op.id)
+    } else {
+      return
+    }
+    tx.update(ref, { attachedNotes: next })
   })
 }
 

@@ -5,7 +5,8 @@ import {
   Image, Pencil, Wallet, CheckSquare, Copy,
   MapPin, FileText, Clock, ClipboardList, CalendarDays,
 } from 'lucide-react'
-import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject, getMetadata } from 'firebase/storage'
+import { arrayRemove } from 'firebase/firestore'
 import { storage } from '../../services/firebase'
 import {
   addStorageUsedBytes, getStorageUsedMB,
@@ -13,6 +14,17 @@ import {
   addAttachedExpense, removeAttachedExpense,
   saveAttachedNotes,
 } from '../../services/firestore'
+
+// Bug #28：使用 crypto.randomUUID() 避免 ID 碰撞
+// Bug #17：fallback 改用 crypto.getRandomValues（不使用 Math.random 產生 ID）
+const uid = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  const arr = new Uint8Array(16)
+  crypto.getRandomValues(arr)
+  arr[6] = (arr[6] & 0x0f) | 0x40
+  arr[8] = (arr[8] & 0x3f) | 0x80
+  return [...arr].map((b, i) => ([4, 6, 8, 10].includes(i) ? '-' : '') + b.toString(16).padStart(2, '0')).join('')
+}
 import { compressImage, IMAGE_LIMIT_MB, TRIP_LIMIT_MB } from '../../utils/imageUtils'
 import { CATEGORY, timeToMinutes, minutesToTime } from '../cards/CardItem'
 import { getDaysInRange } from '../../utils/dateUtils'
@@ -211,7 +223,11 @@ async function uploadImages(files, tripId) {
   if (usedMB + totalNewMB > TRIP_LIMIT_MB)
     throw new Error(`已超過旅遊計畫儲存上限 ${TRIP_LIMIT_MB}MB（目前使用 ${usedMB.toFixed(1)}MB）`)
   const urls = await Promise.all(compressed.map(async file => {
-    const path = `trips/${tripId}/images/${Date.now()}_${file.name}`
+    // Bug #28：檔名前綴改用 UUID 避免同時上傳的碰撞
+    const prefix = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `${Date.now()}-${uid()}`
+    const path = `trips/${tripId}/images/${prefix}_${file.name}`
     const fRef = storageRef(storage, path)
     await Promise.race([uploadBytes(fRef, file), uploadTimeout(30000, 'Firebase Storage 上傳超時，請確認 Firebase Storage 已在 Console 中啟用')])
     return getDownloadURL(fRef)
@@ -251,9 +267,8 @@ function ImageGrid({ images, onDelete, canEdit }) {
 // ── 單筆附加筆記 ─────────────────────────────
 function AttachedNoteItem({ note, tripId, onSave, onRequestDelete }) {
   const { t } = useLanguage()
-  const [editing, setEditing]     = useState(false)
-  const [draft, setDraft]         = useState({ ...note })
-  const [uploading, setUploading] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft]     = useState({ ...note })
   const noteTextareaRef = useRef(null)
   const cfg = CATEGORY.note
 
@@ -442,7 +457,7 @@ function AttachedTodosSection({ card, tripId }) {
     const text = newText.trim()
     if (!text) return
     setAdding(true)
-    await addAttachedTodo(tripId, card.id, { id: `todo-${Date.now()}`, text, checked: false, createdAt: Date.now() })
+    await addAttachedTodo(tripId, card.id, { id: `todo-${uid()}`, text, checked: false, createdAt: Date.now() })
     setNewText('')
     setAdding(false)
   }
@@ -529,7 +544,7 @@ function AttachedExpensesSection({ card, tripId, autoShowForm }) {
     if (!form.name.trim() || !form.amount) return
     setSaving(true)
     await addAttachedExpense(tripId, card.id, {
-      id: `aexp-${Date.now()}`, name: form.name.trim(),
+      id: `aexp-${uid()}`, name: form.name.trim(),
       amount: Number(form.amount), currency: form.currency,
       notes: form.notes.trim(), createdAt: Date.now(),
     })
@@ -676,17 +691,33 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
     window.open(url, '_blank')
   }
 
-  const saveNotes = async (notes) => {
+  // Bug #11：改為以 op 為單位執行，saveAttachedNotes 內部用 transaction 讀寫最新陣列
+  const applyNoteOp = async (op) => {
     if (tripId) {
-      await saveAttachedNotes(tripId, card.id, notes)
+      await saveAttachedNotes(tripId, card.id, op)
     } else {
-      onUpdate?.(card.id, { attachedNotes: notes })
+      // 沒有 tripId（例如新建卡片流程），fallback 用本地陣列覆寫
+      const current = card.attachedNotes ?? []
+      let next = current
+      if (op.kind === 'add') next = [...current, op.note]
+      else if (op.kind === 'edit') next = current.map(n => n?.id === op.id ? { ...n, ...op.patch } : n)
+      else if (op.kind === 'delete') next = current.filter(n => n?.id !== op.id)
+      onUpdate?.(card.id, { attachedNotes: next })
     }
   }
-  const handleEditNote   = (idx, updated) => { const n = [...(card.attachedNotes ?? [])]; n[idx] = { ...n[idx], ...updated }; saveNotes(n) }
-  const handleDeleteNote = (idx) => { saveNotes((card.attachedNotes ?? []).filter((_, i) => i !== idx)); setConfirmDeleteNoteIdx(null) }
-  const handleAddNote    = (draft) => {
-    saveNotes([...(card.attachedNotes ?? []), { id: `note-${Date.now()}`, ...draft, attachedAt: Date.now() }])
+  const handleEditNote = (idx, updated) => {
+    const target = (card.attachedNotes ?? [])[idx]
+    if (!target?.id) return
+    applyNoteOp({ kind: 'edit', id: target.id, patch: updated })
+  }
+  const handleDeleteNote = (idx) => {
+    const target = (card.attachedNotes ?? [])[idx]
+    if (!target?.id) return
+    applyNoteOp({ kind: 'delete', id: target.id })
+    setConfirmDeleteNoteIdx(null)
+  }
+  const handleAddNote = (draft) => {
+    applyNoteOp({ kind: 'add', note: { id: `note-${uid()}`, ...draft, attachedAt: Date.now() } })
     setShowAddNote(false)
   }
 
@@ -702,14 +733,35 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
   }
 
   const handleDeleteCardImage = async (idx) => {
+    // Bug #8：改用 Firestore arrayRemove 做原子操作，避免並發覆蓋
+    // Bug #12：不再 fallback 到整陣列覆寫，若 arrayRemove 失敗直接顯示錯誤
     const url = card.images?.[idx]
-    onUpdate?.(card.id, { images: (card.images ?? []).filter((_, i) => i !== idx) })
-    if (url) {
-      try {
-        const encoded = new URL(url).pathname.split('/o/')[1]
-        if (encoded) await deleteObject(storageRef(storage, decodeURIComponent(encoded.split('?')[0])))
-      } catch (_) { /* ignore: already deleted or external URL */ }
+    if (!url) return
+    setCardImgErr('')
+    try {
+      await onUpdate?.(card.id, { images: arrayRemove(url) })
+    } catch (err) {
+      console.error(err)
+      setCardImgErr('刪除圖片失敗：' + (err?.message || '請稍後再試'))
+      return
     }
+    // Bug #29：Storage 刪除完成後，遞減 quota（若可解析路徑與檔案大小）
+    try {
+      const encoded = new URL(url).pathname.split('/o/')[1]
+      if (encoded) {
+        const path = decodeURIComponent(encoded.split('?')[0])
+        const ref = storageRef(storage, path)
+        let bytes = 0
+        try {
+          const meta = await getMetadata(ref)
+          bytes = meta?.size ?? 0
+        } catch { /* ignore metadata error */ }
+        await deleteObject(ref)
+        if (tripId && bytes > 0) {
+          try { await addStorageUsedBytes(tripId, -bytes) } catch { /* ignore quota decrement failure */ }
+        }
+      }
+    } catch (_) { /* ignore: already deleted or external URL */ }
   }
 
   const handleCopyTodays = async (days) => {

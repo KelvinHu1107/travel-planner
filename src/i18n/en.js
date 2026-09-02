@@ -492,6 +492,32 @@ const en = {
   'tutorial.finish':         'Finish',
   'tutorial.step':           'Step {{current}} / {{total}}',
 
+  // ── Notifications ────────────────────────────────────
+  'notification.title':        'Notifications',
+  'notification.empty':        'No notifications yet',
+  'notification.markAllRead':  'Mark all read',
+  'notification.loading':      'Loading notifications…',
+  'notification.error':        'Failed to load. Please try again later.',
+  'notification.deleteConfirm':'Delete?',
+  'notification.deleteYes':    'Delete',
+  'notification.deleteNo':     'Cancel',
+  'notification.time.justNow': 'just now',
+  'notification.time.minutes': '{{count}} min ago',
+  'notification.time.hours':   '{{count}} hr ago',
+  'notification.time.days':    '{{count}} d ago',
+  'notification.cardAdded':    '{{actor}} added "{{title}}"',
+  'notification.cardUpdated':  '{{actor}} updated "{{title}}"',
+  'notification.cardDeleted':  '{{actor}} deleted "{{title}}"',
+  'notification.memberJoined': '{{actor}} joined the trip',
+  'notification.tripDeleted':  'Trip "{{trip}}" has been deleted',
+  'notification.actor.default':'A member',
+  'notification.actor.newMember':'A new member',
+  'notification.card.default': 'Untitled',
+  'notification.trip.default': 'Untitled',
+
+  // ── LIFF ─────────────────────────────────────────────
+  'liff.initTimeout':          'LINE browser init timed out. Some features may be limited.',
+
   // ── Error messages ────────────────────────────────────
   'error.pageLoad':          'An error occurred. Please reload the page.',
   'error.reload':            'Reload',

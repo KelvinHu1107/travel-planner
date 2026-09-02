@@ -123,6 +123,12 @@ export default function ExpensePage() {
 
   async function handleAddExpense() {
     if (!formTitle.trim() || !formAmount) return
+    // Bug #25 / Bug #16：金額必須為有限、大於 0 且小於 10 億的數字（避免 NaN / 溢位）
+    const amt = Number(formAmount)
+    if (!Number.isFinite(amt) || amt <= 0 || amt >= 1e9) {
+      setFormError('金額必須為大於 0 的有效數字')
+      return
+    }
     const day = formDay || days[0]
     if (!day) { setFormError(t('expense.error.loading')); return }
     setFormSaving(true)
@@ -264,7 +270,7 @@ export default function ExpensePage() {
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 type="number" value={formAmount} onChange={e => setFormAmount(e.target.value)}
-                placeholder={t('expense.field.amount')} min="0"
+                placeholder={t('expense.field.amount')} min="0.01" step="0.01"
                 style={{ ...inputStyle, flex: 1 }}
               />
               <select
@@ -565,20 +571,37 @@ export default function ExpensePage() {
 }
 
 function ExpenseList({ items, tripId, days = [] }) {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [deleting, setDeleting] = useState(null)
   const [editing,  setEditing]  = useState(null)
   const [editForm, setEditForm] = useState({})
   const [saving,   setSaving]   = useState(false)
+
+  // Bug #31：與 add-form 一致的日期顯示
+  const WD = lang === 'zh'
+    ? ['週日','週一','週二','週三','週四','週五','週六']
+    : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+  const formatEditDay = (d) => {
+    const date = new Date(d + 'T00:00:00')
+    return `${date.getMonth() + 1}/${date.getDate()} ${WD[date.getDay()]}`
+  }
 
   const startEdit = (e) => {
     setEditing(e.id)
     setEditForm({ title: e.title, amount: String(e.amount ?? ''), currency: e.currency ?? 'TWD', category: e.category ?? 'other', notes: e.notes ?? '', day: e.day ?? '' })
   }
 
+  const [editError, setEditError] = useState('')
   const handleSave = async () => {
     if (!editForm.title?.trim() || !editForm.amount) return
+    // Bug #25 / Bug #16：金額必須為有限、大於 0 且小於 10 億的數字（避免 NaN / 溢位）
+    const amt = Number(editForm.amount)
+    if (!Number.isFinite(amt) || amt <= 0 || amt >= 1e9) {
+      setEditError('金額必須為大於 0 的有效數字')
+      return
+    }
     setSaving(true)
+    setEditError('')
     try {
       await updateExpense(tripId, editing, {
         title: editForm.title.trim(),
@@ -631,12 +654,20 @@ function ExpenseList({ items, tripId, days = [] }) {
                 {days.length > 0 && (
                   <select value={editForm.day} onChange={ev => setEditForm(f => ({ ...f, day: ev.target.value }))}
                     style={{ ...inputS, flex: 1, cursor: 'pointer' }}>
-                    {days.map(d => <option key={d} value={d}>{d}</option>)}
+                    {/* Bug #31：顯示與新增表單一致的日期格式 */}
+                    {days.map(d => <option key={d} value={d}>{formatEditDay(d)}</option>)}
                   </select>
                 )}
               </div>
               <input value={editForm.notes} onChange={ev => setEditForm(f => ({ ...f, notes: ev.target.value }))}
                 placeholder={t('expense.field.notes')} style={inputS} />
+              {editError && (
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#DC2626',
+                  padding: '6px 10px', background: 'rgba(220,38,38,0.08)',
+                  border: '1px solid rgba(220,38,38,0.22)', borderRadius: 8 }}>
+                  ⚠️ {editError}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => setEditing(null)} style={{
                   flex: 1, padding: '8px', borderRadius: 9, border: '1.5px solid rgba(165,125,65,0.28)',
