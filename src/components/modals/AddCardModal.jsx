@@ -37,10 +37,10 @@ const EXPENSE_CATEGORIES = [
 
 const DURATION_VALUES = [30, 60, 90, 120, 180, 240, 360, 480, 600, 720, 960, 1440]
 
-// CATEGORY 沒有 note/expense 條目，此處提供顯示用的預設樣式（編輯 note/expense 卡片時使用）
+// CATEGORY 沒有 note/expense 條目，此處提供顯示用的預設樣式（label 走 i18n，不硬編碼）
 const CARD_CFG_EXTRA = {
-  note:    { icon: '📝', IconComp: null, label: '筆記', color: '#5B21B6', bg: 'rgba(91,33,182,0.07)',  border: 'rgba(91,33,182,0.28)' },
-  expense: { icon: '💰', IconComp: null, label: '費用', color: '#92400E', bg: 'rgba(146,64,14,0.07)',  border: 'rgba(146,64,14,0.28)' },
+  note:    { icon: '📝', IconComp: null, color: '#5B21B6', bg: 'rgba(91,33,182,0.07)',  border: 'rgba(91,33,182,0.28)' },
+  expense: { icon: '💰', IconComp: null, color: '#92400E', bg: 'rgba(146,64,14,0.07)',  border: 'rgba(146,64,14,0.28)' },
 }
 
 function getDurationLabel(mins, t) {
@@ -81,6 +81,7 @@ const PLACE_CATEGORIES = new Set(['attraction', 'restaurant', 'accommodation'])
 const QUICK_LABEL_KEYS = new Set(['restaurant', 'accommodation'])
 
 function tToMin(t) {
+  if (!t) return 0
   const [h, m] = t.split(':').map(Number)
   return h * 60 + m
 }
@@ -446,14 +447,15 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, exis
     if (!form.title.trim()) return
 
     const day = editCard?.day ?? defaultDay
+    if (!form.startTime) return
     const newStart = tToMin(form.startTime)
     const newEnd = newStart + form.duration
-    const overlap = (existingCards ?? []).find(c =>
-      c.day === day &&
-      (!editCard || c.id !== editCard.id) &&
-      tToMin(c.startTime) < newEnd &&
-      tToMin(c.startTime) + c.duration > newStart
-    )
+    const overlap = (existingCards ?? []).find(c => {
+      if (!c.startTime) return false
+      if (c.day !== day) return false
+      if (editCard && c.id === editCard.id) return false
+      return tToMin(c.startTime) < newEnd && tToMin(c.startTime) + c.duration > newStart
+    })
     if (overlap) {
       setOverlapError(t('addCard.overlap.error', { title: overlap.title, time: overlap.startTime }))
       return
@@ -883,10 +885,12 @@ export default function AddCardModal({ defaultDay, defaultTime, onAdd, onEdit, o
   const handleSubmit = (formData) => {
     const { pendingNearby, ...mainData } = formData
     if (isEdit) {
-      // Bug #12：編輯時只回寫真正可編輯的欄位，避免覆蓋其他人並發修改的 attachedNotes/attachedTodos/attachedExpenses/images 等
+      // Bug #12/H1：編輯時只回寫真正可編輯的欄位，避免覆蓋其他人並發修改的
+      // attachedNotes/attachedTodos/attachedExpenses/images/attachments 以及地點快取欄位
       const {
         attachedNotes: _an, attachedTodos: _at, attachedExpenses: _ae,
         images: _img, storageUsedBytes: _sub,
+        attachments: _att, weekdayText: _wt, photo: _ph, rating: _rt,
         id: _id, createdAt: _ct,
         ...editableFields
       } = mainData

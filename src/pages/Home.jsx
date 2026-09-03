@@ -6,7 +6,7 @@ import { db } from '../services/firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { useViewMode } from '../contexts/ViewModeContext'
 import { createTrip, joinTrip, getUserTrips, deleteTrip, leaveTrip, addCard, cleanupDemoTrips } from '../services/firestore'
-import { getTripDuration } from '../utils/dateUtils'
+import { getTripDuration, getLocalDateStr } from '../utils/dateUtils'
 import { useTutorial } from '../tutorial/TutorialContext'
 import { useLanguage } from '../i18n/LanguageContext'
 
@@ -211,9 +211,9 @@ function CreateModal({ uid, onClose, onCreated }) {
     if (form.startDate > form.endDate) { setError(t('create.error.dateOrder')); return }
     // Bug #24：日期範圍最多 60 天（Bug #15：使用 Math.round 避免 DST 導致 off-by-one）
     const days = Math.round((new Date(form.endDate) - new Date(form.startDate)) / (24 * 60 * 60 * 1000)) + 1
-    if (days > 60) { setError('日期範圍最多 60 天，請縮短行程時間'); return }
+    if (days > 60) { setError(t('settings.dateRangeMax')); return }
     // Bug #29：trip name 長度限制
-    if (form.tripName.trim().length > 50) { setError('計畫名稱最多 50 個字'); return }
+    if (form.tripName.trim().length > 50) { setError(t('create.error.nameTooLong')); return }
     setLoading(true)
     try {
       const code = await createTrip({
@@ -304,7 +304,10 @@ function JoinModal({ uid, actor, onClose, onJoined, initialCode = '' }) {
       onJoined?.()
       navigate(`/trip/${trip.code}`)
     } catch (err) {
-      setError(err.message || t('join.error.failed'))
+      const msg = err.message === 'TRIP_NOT_FOUND'
+        ? t('error.tripNotFound')
+        : t('error.joinFailed')
+      setError(msg)
     } finally { setLoading(false) }
   }
 
@@ -464,7 +467,7 @@ export default function Home() {
 
   const { isMobileMode, toggleMode } = useViewMode()
   const avatar      = currentUser?.photoURL
-  const displayName = currentUser?.displayName || currentUser?.email?.split('@')[0] || '旅人'
+  const displayName = currentUser?.displayName || currentUser?.email?.split('@')[0] || t('common.traveler')
   const { tutorialCompleted, tutorialActive, startTutorial, demoTripData } = useTutorial()
 
   // 登入後清除本帳號遺留的教學計畫（非教學進行中時）
@@ -491,9 +494,9 @@ export default function Home() {
 
   // Bug #13：超過 30 天未瀏覽的自有計畫，改為警告清單讓使用者決定是否刪除
   const staleTrips = regularTrips.filter(t => isStaleTrip(t, currentUser?.uid))
-  // Bug #14 + #24：dismiss key 需等 currentUser.uid 就緒才決定；改用 localStorage（跨分頁共享）加日期做每日重置
+  // Bug #14 + #24 + M9：dismiss key 需等 currentUser.uid 就緒才決定；改用 localStorage（跨分頁共享）加當地日期做每日重置
   const STALE_DISMISS_KEY = currentUser?.uid
-    ? `stale_warning_dismissed_${currentUser.uid}_${new Date().toISOString().slice(0, 10)}`
+    ? `stale_warning_dismissed_${currentUser.uid}_${getLocalDateStr()}`
     : null
   const [staleWarningDismissed, setStaleWarningDismissed] = useState(false)
   useEffect(() => {

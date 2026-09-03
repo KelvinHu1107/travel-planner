@@ -127,7 +127,7 @@ export default function ExpensePage() {
     // Bug #25 / Bug #16：金額必須為有限、大於 0 且小於 10 億的數字（避免 NaN / 溢位）
     const amt = Number(formAmount)
     if (!Number.isFinite(amt) || amt <= 0 || amt >= 1e9) {
-      setFormError('金額必須為大於 0 的有效數字')
+      setFormError(t('expense.error.invalidAmount'))
       return
     }
     const day = formDay || days[0]
@@ -218,7 +218,7 @@ export default function ExpensePage() {
           padding: '5px 9px', borderRadius: 9, border: '1.5px solid rgba(165,125,65,0.28)',
           background: 'var(--bg-elevated)', color: 'var(--text-muted)', fontSize: 10, fontWeight: 900, cursor: 'pointer',
           display: 'flex', alignItems: 'center', gap: 4,
-        }}>{isMobileMode ? <Monitor size={12} /> : <Smartphone size={12} />} {isMobileMode ? '電腦版' : '手機版'}</button>
+        }}>{isMobileMode ? <Monitor size={12} /> : <Smartphone size={12} />} {isMobileMode ? t('board.pcMode') : t('board.mobileMode')}</button>
       </div>
 
       {/* Content */}
@@ -599,7 +599,7 @@ function ExpenseList({ items, tripId, days = [] }) {
     // Bug #25 / Bug #16：金額必須為有限、大於 0 且小於 10 億的數字（避免 NaN / 溢位）
     const amt = Number(editForm.amount)
     if (!Number.isFinite(amt) || amt <= 0 || amt >= 1e9) {
-      setEditError('金額必須為大於 0 的有效數字')
+      setEditError(t('expense.error.invalidAmount'))
       return
     }
     setSaving(true)

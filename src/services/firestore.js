@@ -123,7 +123,7 @@ export async function joinTrip(code, uid, actor = null) {
   const snap = await getDoc(doc(db, 'trips', upperCode))
 
   if (!snap.exists()) {
-    throw new Error('找不到這個旅遊計畫，請確認邀請代碼是否正確')
+    throw new Error('TRIP_NOT_FOUND')
   }
 
   const data = snap.data()
@@ -151,7 +151,7 @@ export async function joinTrip(code, uid, actor = null) {
 // 讀取旅遊計畫資料（已驗證後使用）
 export async function getTrip(code) {
   const snap = await getDoc(doc(db, 'trips', code))
-  if (!snap.exists()) throw new Error('找不到旅遊計畫')
+  if (!snap.exists()) throw new Error('TRIP_NOT_FOUND')
   return { code, ...snap.data() }
 }
 
@@ -239,7 +239,7 @@ export async function deleteCard(tripId, cardId, actor = null) {
 
 export async function getCard(tripId, cardId) {
   const snap = await getDoc(doc(db, 'trips', tripId, 'cards', cardId))
-  if (!snap.exists()) throw new Error('卡片不存在')
+  if (!snap.exists()) throw new Error('CARD_NOT_FOUND')
   return { id: snap.id, ...snap.data() }
 }
 
@@ -384,7 +384,6 @@ export async function createDemoTrip(uid) {
     name: '✈️ 台北一日遊（教學範例）',
     startDate: dateStr,
     endDate: dateStr,
-    password: 'tutorial',
     passwordHash: 'demo',
     backgroundImage: null,
     ownerId: uid,
@@ -493,11 +492,6 @@ export async function clearAllCards(tripId, actor = null) {
       }).catch(() => {})
     }
   }
-}
-
-// 重設計畫加入密碼（Bug #14：只儲存 hash，不儲存明文）
-export async function updateTripPassword(tripId, passwordHash) {
-  await updateDoc(doc(db, 'trips', tripId), { passwordHash })
 }
 
 // 將筆記附加到某張卡片（並刪除原來的筆記卡）

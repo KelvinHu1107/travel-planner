@@ -204,11 +204,11 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         msg = t('settings.account.pw.error.wrong')
       } else if (err.code === 'auth/too-many-requests') {
-        msg = '嘗試次數過多，請稍後再試'
+        msg = t('settings.account.pw.error.tooMany')
       } else if (err.code === 'auth/requires-recent-login') {
-        msg = '為了安全考量，請重新登入後再嘗試變更密碼'
+        msg = t('settings.account.pw.error.recentLogin')
       } else if (err.code === 'auth/weak-password') {
-        msg = '新密碼強度不足，請使用至少 6 個字元'
+        msg = t('settings.account.pw.error.weak')
       } else {
         msg = t('settings.account.pw.error.failed')
       }
@@ -776,10 +776,10 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                     {t('settings.about.disclaimer.body1')}
                   </p>
                   <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-                    因使用或無法使用本服務（包含資料遺失、服務中斷等）所導致之任何直接、間接或衍生損失，開發者均不負賠償責任。
+                    {t('settings.about.disclaimer.body3')}
                   </p>
                   <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-                    開發者保留隨時新增、修改、暫停或終止本服務任何功能之權利，恕不另行通知。
+                    {t('settings.about.disclaimer.body4')}
                   </p>
                 </div>
               </div>
@@ -787,12 +787,12 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
               {/* 適用法律 */}
               <div style={{ paddingBottom: 4 }}>
                 <p style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10 }}>
-                  適用法律與管轄
+                  {t('settings.about.law.title')}
                 </p>
                 <div style={{ padding: '12px 16px', borderRadius: 14,
                   background: 'rgba(165,125,65,0.04)', border: '1px solid rgba(165,125,65,0.12)' }}>
                   <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-                    本服務之使用條款及一切相關事宜，均依中華民國法律解釋及適用。因本服務所生之任何爭議，以中華民國臺灣臺北地方法院為第一審管轄法院。
+                    {t('settings.about.law.body')}
                   </p>
                 </div>
               </div>
@@ -819,7 +819,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-primary)',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {currentUser?.displayName || '旅人'}
+                    {currentUser?.displayName || t('common.traveler')}
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -881,6 +881,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
 
 // ── 拖曳垃圾桶區 ────────────────────────────
 function TrashZone({ visible, isMobile }) {
+  const { t } = useLanguage()
   const { setNodeRef, isOver } = useDroppable({ id: 'trash-zone' })
   return (
     <div
@@ -901,7 +902,7 @@ function TrashZone({ visible, isMobile }) {
       }}
     >
       <Trash2 size={18} style={{ flexShrink: 0 }} />
-      {isOver ? ' 放開以刪除！' : ' 拖到這裡刪除'}
+      {isOver ? ` ${t('board.trashDrop')}` : ` ${t('board.trashHint')}`}
     </div>
   )
 }
@@ -909,6 +910,7 @@ function TrashZone({ visible, isMobile }) {
 // ── 左側 Sidebar ────────────────────────────
 function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExportPDF }) {
   const navigate = useNavigate()
+  const { t } = useLanguage()
 
   const counts = cards.reduce((acc, c) => {
     acc[c.type] = (acc[c.type] || 0) + 1
@@ -927,7 +929,7 @@ function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExp
       {/* 旅遊計畫資訊 */}
       <div>
         <p style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 14 }}>
-          旅遊計畫
+          {t('board.sidebar.tripInfo')}
         </p>
         <div className="glass-card" style={{ padding: '20px 18px' }}>
           <div style={{ marginBottom: 10, color: 'var(--text-primary)' }}><Map size={22} /></div>
@@ -943,7 +945,7 @@ function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExp
             fontSize: 14, fontWeight: 900, color: 'var(--accent)', textAlign: 'center',
           }}>
             <CalendarDays size={15} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-            共 {trip ? getTripDuration(trip.startDate, trip.endDate) : 0} 天
+            {t('board.sidebar.totalDays', { n: trip ? getTripDuration(trip.startDate, trip.endDate) : 0 })}
           </div>
           {/* 背景圖縮圖 */}
           {trip?.backgroundImage && (
@@ -958,7 +960,7 @@ function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExp
       {/* 地圖 / 天氣 */}
       <div>
         <p style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10 }}>
-          地圖 / 天氣
+          {t('board.sidebar.mapWeather')}
         </p>
         <MapErrorBoundary>
           <DayMapView trip={trip} cards={cards} mapHeight={180} />
@@ -968,7 +970,7 @@ function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExp
       {/* 類別統計 */}
       <div>
         <p style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 14 }}>
-          行程統計
+          {t('board.sidebar.stats')}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {Object.entries(CATEGORY).map(([key, cfg]) => (
@@ -979,7 +981,7 @@ function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExp
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <cfg.IconComp size={18} weight="regular" color={cfg.color} />
-                <span style={{ fontSize: 14, fontWeight: 900, color: cfg.color }}>{cfg.label}</span>
+                <span style={{ fontSize: 14, fontWeight: 900, color: cfg.color }}>{t('category.' + key)}</span>
               </div>
               <span style={{
                 fontSize: 16, fontWeight: 900, color: cfg.color,
@@ -997,12 +999,12 @@ function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExp
       {/* 頁面導覽 */}
       <div>
         <p style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10 }}>
-          頁面導覽
+          {t('board.sidebar.nav')}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[
-            { IconComp: ClipboardList, label: '待辦清單', path: `/trip/${tripId}/todos`, color: '#B45309', bg: 'rgba(180,83,9,0.08)', border: 'rgba(180,83,9,0.25)' },
-            { IconComp: Package, label: '打包清單', path: `/trip/${tripId}/packing`, color: '#0F766E', bg: 'rgba(15,118,110,0.08)', border: 'rgba(15,118,110,0.25)' },
+            { IconComp: ClipboardList, label: t('board.sidebar.todos'), path: `/trip/${tripId}/todos`, color: '#B45309', bg: 'rgba(180,83,9,0.08)', border: 'rgba(180,83,9,0.25)' },
+            { IconComp: Package, label: t('board.sidebar.packing'), path: `/trip/${tripId}/packing`, color: '#0F766E', bg: 'rgba(15,118,110,0.08)', border: 'rgba(15,118,110,0.25)' },
           ].map(nav => (
             <button key={nav.path} onClick={() => navigate(nav.path)} style={{
               width: '100%', padding: '11px 14px', borderRadius: 14, textAlign: 'left',
@@ -1023,16 +1025,16 @@ function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExp
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <button className="btn-game btn-ghost" style={{ padding: '12px', fontSize: 13, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={onShowExpense}>
-          <Wallet size={15} style={{ marginRight: 6 }} /> 開銷統計
+          <Wallet size={15} style={{ marginRight: 6 }} /> {t('board.sidebar.expenses')}
         </button>
         <button className="btn-game btn-ghost" style={{ padding: '12px', fontSize: 13, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={onShowSettings}>
-          <Settings2 size={15} style={{ marginRight: 6 }} /> 設定 / 背景圖片
+          <Settings2 size={15} style={{ marginRight: 6 }} /> {t('board.sidebar.settings')}
         </button>
         <button className="btn-game btn-ghost" style={{ padding: '12px', fontSize: 13, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           data-tutorial-id="export-pdf-btn"
           onClick={onExportPDF}>
-          <FileText size={15} style={{ marginRight: 6 }} /> 匯出 PDF
+          <FileText size={15} style={{ marginRight: 6 }} /> {t('board.sidebar.exportPDF')}
         </button>
       </div>
     </div>
@@ -1042,6 +1044,7 @@ function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExp
 // ── TopBar ──────────────────────────────────
 function TopBar({ trip, tripId, onShowSettings, isMobile, onToggleSidebar, sidebarOpen, toggleMode, isMobileMode }) {
   const navigate = useNavigate()
+  const { t } = useLanguage()
   const [showShare, setShowShare] = useState(false)
   const [copied, setCopied]       = useState(false)
 
@@ -1098,11 +1101,11 @@ function TopBar({ trip, tripId, onShowSettings, isMobile, onToggleSidebar, sideb
           <h1 title={trip?.name} style={{ fontSize: isMobile ? 14 : 17, fontWeight: 900, color: 'var(--text-primary)',
             lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             maxWidth: isMobile ? 130 : 'none' }}>
-            {trip?.name || '載入中…'}
+            {trip?.name || t('board.title.loading')}
           </h1>
           {trip && !isMobile && (
             <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', marginTop: 2 }}>
-              {trip.startDate} – {trip.endDate}　·　共 {getTripDuration(trip.startDate, trip.endDate)} 天
+              {trip.startDate} – {trip.endDate}　·　{t('board.sidebar.totalDays', { n: getTripDuration(trip.startDate, trip.endDate) })}
             </p>
           )}
         </div>
@@ -1118,7 +1121,7 @@ function TopBar({ trip, tripId, onShowSettings, isMobile, onToggleSidebar, sideb
               background: 'var(--bg-elevated)',
               color: 'var(--text-muted)', fontSize: 11, fontWeight: 900,
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
-            }}>{isMobileMode ? <Monitor size={13} /> : <Smartphone size={13} />} {isMobileMode ? '電腦版' : '手機版'}</button>
+            }}>{isMobileMode ? <Monitor size={13} /> : <Smartphone size={13} />} {isMobileMode ? t('board.pcMode') : t('board.mobileMode')}</button>
           )}
           <CopyLinkButton />
           <FullscreenButton />
@@ -1135,11 +1138,12 @@ function TopBar({ trip, tripId, onShowSettings, isMobile, onToggleSidebar, sideb
 
 // ── 浮動新增按鈕（Speed Dial） ──────────────────
 function FloatingAddButton({ onAddCard, onAddExpense, bottom = 36, size = 68, iconSize = 28, tutorialId }) {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
 
   const menuItems = [
-    { IconComp: Wallet, label: '新增開銷', color: '#059669', shadow: '#065F46', action: onAddExpense },
-    { IconComp: MapPin, label: '新增行程', color: '#B45309', shadow: '#7C2D12', action: onAddCard },
+    { IconComp: Wallet, label: t('board.fab.expense'), color: '#059669', shadow: '#065F46', action: onAddExpense },
+    { IconComp: MapPin, label: t('board.addCard'),     color: '#B45309', shadow: '#7C2D12', action: onAddCard },
   ]
 
   const fabBottom = typeof bottom === 'string' ? bottom : bottom
@@ -1211,8 +1215,9 @@ function FloatingAddButton({ onAddCard, onAddExpense, bottom = 36, size = 68, ic
 const CARD_TYPE_ICON = { attraction: '📍', transport: '🚌' }
 
 function ListView({ cards, trip, onCardClick, onDeleteCard }) {
+  const { t, lang } = useLanguage()
   const days = getDaysInRange(trip.startDate, trip.endDate)
-  const WEEKDAYS = ['週日','週一','週二','週三','週四','週五','週六']
+  const WEEKDAYS = lang === 'zh' ? WEEKDAYS_ZH : WEEKDAYS_EN
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
 
   return (
@@ -1556,7 +1561,7 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
   const activeDayLabel = `${activeDayDate.getMonth()+1}/${activeDayDate.getDate()} ${WEEKDAYS[activeDayDate.getDay()]}`
   const isTripFuture  = trip?.startDate ? todayStr < trip.startDate : false
   const isTripPast    = trip?.endDate ? todayStr > trip.endDate : false
-  const statusText    = isTripFuture ? '即將到來' : isTripPast ? '已結束' : '進行中'
+  const statusText    = isTripFuture ? t('board.status.upcoming') : isTripPast ? t('board.status.ended') : t('board.status.ongoing')
   const statusColor   = isTripFuture ? '#0EA5E9'  : isTripPast ? '#94A3B8' : '#10B981'
 
   const TUTORIAL_FALLBACK = useMemo(() => tutorialActive ? [
@@ -1833,11 +1838,10 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
         }}>
           <Map size={28} color="var(--text-muted)" />
           <span style={{ fontSize: 12, fontWeight: 900, color: 'var(--text-secondary)', textAlign: 'center' }}>
-            尚無路線圖
+            {t('board.map.noRoute')}
           </span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
-            新增景點或餐廳等行程並搜尋地點，<br />地圖將自動顯示完整路線
-          </span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.5 }}
+            dangerouslySetInnerHTML={{ __html: t('board.map.noRouteHint') }} />
         </div>
       )}
     </div>
@@ -1915,7 +1919,7 @@ function MobileOverview({ trip, cards, onCardClick, onDeleteCard, onDaySelect, s
               {isToday && <span style={{ fontSize: 10, fontWeight: 900, color: '#fff',
                 background: 'var(--accent)', borderRadius: 6, padding: '1px 6px' }}>今天</span>}
               <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)' }}>
-                {dayCards.length > 0 ? `${dayCards.length} 項 →` : '→ 查看'}
+                {dayCards.length > 0 ? t('board.overview.items', { count: dayCards.length }) : t('board.overview.view')}
               </span>
             </div>
 
@@ -2740,15 +2744,15 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
                     gap: 14,
                   }}>
                     <Map size={52} color="var(--text-muted)" />
-                    <p style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-secondary)' }}>行程是空的</p>
+                    <p style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-secondary)' }}>{t('board.emptyTitle')}</p>
                     <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', textAlign: 'center' }}>
-                      點右下角「＋」新增行程，或載入範例
+                      {t('board.emptyHint')}
                     </p>
                     <button onClick={handleSeedCards} style={{
                       padding: '11px 26px', borderRadius: 14, fontSize: 13, fontWeight: 900,
                       background: 'linear-gradient(135deg,#D97706,#B45309)',
                       border: 'none', boxShadow: '0 5px 0 #78350F', color: '#fff', cursor: 'pointer',
-                    }}><ClipboardList size={14} style={{ marginRight: 6 }} /> 新增範例行程</button>
+                    }}><ClipboardList size={14} style={{ marginRight: 6 }} /> {t('board.addSample')}</button>
                   </div>
                 )}
               </div>

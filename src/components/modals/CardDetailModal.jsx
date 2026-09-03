@@ -44,11 +44,11 @@ const CURRENCY_FLAG = {
 }
 const CURRENCIES = ['TWD', 'JPY', 'USD', 'EUR', 'KRW', 'HKD', 'SGD', 'AUD']
 
-// CATEGORY 沒有 note/expense 條目，此處提供顯示用的預設樣式
+// CATEGORY 沒有 note/expense 條目，此處提供顯示用的預設樣式（label 走 i18n，不硬編碼）
 const NOTE_CFG = { color: '#5B21B6', bg: 'rgba(91,33,182,0.05)', border: 'rgba(91,33,182,0.35)' }
 const CARD_CFG_EXTRA = {
-  note:    { icon: '📝', IconComp: null, label: '筆記', color: '#5B21B6', bg: 'rgba(91,33,182,0.07)',  border: 'rgba(91,33,182,0.28)' },
-  expense: { icon: '💰', IconComp: null, label: '費用', color: '#92400E', bg: 'rgba(146,64,14,0.07)',  border: 'rgba(146,64,14,0.28)' },
+  note:    { icon: '📝', IconComp: null, color: '#5B21B6', bg: 'rgba(91,33,182,0.07)',  border: 'rgba(91,33,182,0.28)' },
+  expense: { icon: '💰', IconComp: null, color: '#92400E', bg: 'rgba(146,64,14,0.07)',  border: 'rgba(146,64,14,0.28)' },
 }
 
 // ── 通用確認對話框 ────────────────────────────
@@ -853,7 +853,7 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 10, fontWeight: 900, color: cfg.color,
-                  textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 3 }}>{cfg.label}</div>
+                  textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 3 }}>{t('category.' + card.type)}</div>
                 <h2 style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)',
                   lineHeight: 1.3, wordBreak: 'break-word' }}>{card.title}</h2>
               </div>

@@ -24,11 +24,11 @@ function renderInline(text) {
 }
 
 // ── Markdown 預覽（互動式 checkbox）─────────
-function MarkdownView({ content, onToggleCheckbox }) {
+function MarkdownView({ content, onToggleCheckbox, t }) {
   if (!content?.trim()) return (
     <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 15, padding: '40px 0', textAlign: 'center' }}>
       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><Pencil size={40} color="var(--text-muted)" /></div>
-      切換到「編輯」模式開始寫筆記
+      {t('note.switchToEdit')}
     </div>
   )
 
@@ -157,7 +157,7 @@ export default function NoteDetail() {
     const unsub = onSnapshot(ref,
       (snap) => {
         if (!snap.exists()) {
-          setError('筆記不存在或已被刪除')
+          setError(t('note.notFound'))
           setLoading(false)
           return
         }
@@ -174,7 +174,7 @@ export default function NoteDetail() {
       }
     )
     return () => unsub()
-  }, [tripId, noteId])
+  }, [tripId, noteId, t])
 
   const triggerAutoSave = useCallback((newTitle, newContent) => {
     clearTimeout(saveTimer.current)
@@ -190,12 +190,12 @@ export default function NoteDetail() {
         setTimeout(() => setSaved(false), 2000)
       } catch (err) {
         // Bug #23：save 失敗時顯示錯誤，讓使用者知道未儲存
-        setSaveError('筆記自動儲存失敗：' + (err?.message || '請檢查網路連線'))
+        setSaveError(t('note.saveError') + (err?.message || t('error.checkNetwork')))
       } finally {
         setSaving(false)
       }
     }, 800)
-  }, [tripId, noteId])
+  }, [tripId, noteId, t])
 
   const handleTitleChange = (e) => {
     localDirtyRef.current.title = true
@@ -286,7 +286,7 @@ export default function NoteDetail() {
             color: saveError ? '#DC2626' : saving ? 'var(--text-muted)' : saved ? '#0F766E' : 'var(--text-muted)',
             display: 'flex', alignItems: 'center', gap: 6 }}>
             {saveError ? (
-              <><AlertTriangle size={13} style={{ marginRight: 3 }} /> 儲存失敗</>
+              <><AlertTriangle size={13} style={{ marginRight: 3 }} /> {t('note.saveFailed')}</>
             ) : saving ? (
               <>⏳ {t('note.saving')}</>
             ) : saved ? (
@@ -366,7 +366,7 @@ export default function NoteDetail() {
             </div>
           ) : (
             <div style={{ minHeight: 420, padding: '8px 0' }}>
-              <MarkdownView content={content} onToggleCheckbox={handleToggleCheckbox} />
+              <MarkdownView content={content} onToggleCheckbox={handleToggleCheckbox} t={t} />
             </div>
           )}
 
