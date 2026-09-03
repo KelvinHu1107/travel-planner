@@ -32,7 +32,7 @@ const escHtml = s => String(s ?? '')
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;')
-import { getTripDuration, getDaysInRange, getLocalDateStr } from '../utils/dateUtils'
+import { getTripDuration, getDaysInRange, getLocalDateStr, WEEKDAYS_ZH, WEEKDAYS_EN } from '../utils/dateUtils'
 import { loadGoogleMaps } from '../services/maps'
 import BoardLayout from '../components/board/BoardLayout'
 import AddCardModal from '../components/modals/AddCardModal'
@@ -1522,10 +1522,11 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
   const [weather, setWeather] = useState(null)
   const [weatherError, setWeatherError] = useState(null)
   const { tutorialActive } = useTutorial()
+  const { t, lang } = useLanguage()
 
   const todayStr  = getLocalDateStr()
   const nowHHMM   = new Date().toTimeString().slice(0, 5)
-  const WEEKDAYS  = ['週日','週一','週二','週三','週四','週五','週六']
+  const WEEKDAYS  = lang === 'zh' ? WEEKDAYS_ZH : WEEKDAYS_EN
 
   const days = (trip?.startDate && trip?.endDate) ? getDaysInRange(trip.startDate, trip.endDate) : []
 
@@ -1849,8 +1850,9 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
 }
 
 function MobileOverview({ trip, cards, onCardClick, onDeleteCard, onDaySelect, searchQuery }) {
+  const { t, lang } = useLanguage()
   const days = getDaysInRange(trip.startDate, trip.endDate)
-  const WEEKDAYS = ['週日','週一','週二','週三','週四','週五','週六']
+  const WEEKDAYS = lang === 'zh' ? WEEKDAYS_ZH : WEEKDAYS_EN
   const todayStr = getLocalDateStr()
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
 

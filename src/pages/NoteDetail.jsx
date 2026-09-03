@@ -353,7 +353,7 @@ export default function NoteDetail() {
                 ref={textareaRef}
                 value={content}
                 onChange={e => handleContentChange(e.target.value)}
-                placeholder="在這裡寫下你的旅遊筆記…&#10;&#10;支援 Markdown 格式：&#10;# 大標題  ## 小標題&#10;**粗體**  *斜體*&#10;- 清單項目&#10;- [ ] 待辦事項  - [x] 已完成&#10;--- 分隔線"
+                placeholder={t('note.placeholder')}
                 style={{
                   width: '100%', minHeight: 420,
                   fontSize: 16, fontWeight: 700, lineHeight: 1.9,
