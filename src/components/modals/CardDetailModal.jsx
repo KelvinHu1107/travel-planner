@@ -44,6 +44,13 @@ const CURRENCY_FLAG = {
 }
 const CURRENCIES = ['TWD', 'JPY', 'USD', 'EUR', 'KRW', 'HKD', 'SGD', 'AUD']
 
+// CATEGORY 沒有 note/expense 條目，此處提供顯示用的預設樣式
+const NOTE_CFG = { color: '#5B21B6', bg: 'rgba(91,33,182,0.05)', border: 'rgba(91,33,182,0.35)' }
+const CARD_CFG_EXTRA = {
+  note:    { icon: '📝', IconComp: null, label: '筆記', color: '#5B21B6', bg: 'rgba(91,33,182,0.07)',  border: 'rgba(91,33,182,0.28)' },
+  expense: { icon: '💰', IconComp: null, label: '費用', color: '#92400E', bg: 'rgba(146,64,14,0.07)',  border: 'rgba(146,64,14,0.28)' },
+}
+
 // ── 通用確認對話框 ────────────────────────────
 function ConfirmDialog({ open, title, message, confirmLabel, danger = false, onConfirm, onCancel }) {
   const { t } = useLanguage()
@@ -270,7 +277,7 @@ function AttachedNoteItem({ note, tripId, onSave, onRequestDelete }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft]     = useState({ ...note })
   const noteTextareaRef = useRef(null)
-  const cfg = CATEGORY.note
+  const cfg = NOTE_CFG
 
   // Bug #20: 非編輯狀態下，遠端更新時同步 draft（避免覆蓋他人修改）
   useEffect(() => {
@@ -677,7 +684,7 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
   const [cardImgErr, setCardImgErr]     = useState('')
   const cardImgRef = useRef(null)
 
-  const cfg     = CATEGORY[card.type] ?? CATEGORY.note
+  const cfg     = CATEGORY[card.type] ?? CARD_CFG_EXTRA[card.type] ?? CATEGORY.attraction
   const endTotalMin = timeToMinutes(card.startTime) + card.duration
   const endTime = minutesToTime(endTotalMin % (24 * 60))
   const crossesMidnight = endTotalMin >= 24 * 60

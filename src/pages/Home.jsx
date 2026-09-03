@@ -121,7 +121,7 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave, isMobileMode 
         )}
 
         <div style={{ position: 'absolute', bottom: 10, left: 14, right: 14 }}>
-          <div style={{ fontSize: 16, fontWeight: 900, color: '#fff',
+          <div title={trip.name} style={{ fontSize: 16, fontWeight: 900, color: '#fff',
             textShadow: '0 1px 6px rgba(0,0,0,0.5)', lineHeight: 1.3,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {trip.name}
@@ -450,7 +450,10 @@ export default function Home() {
   const handleLeave = async (tripCode) => {
     setActionError('')
     try {
-      await leaveTrip(tripCode, currentUser?.uid)
+      await leaveTrip(tripCode, currentUser?.uid, {
+        uid: currentUser?.uid,
+        displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
+      })
       setTrips(ts => ts.filter(t => t.code !== tripCode))
     } catch (err) {
       console.error(err)
@@ -624,10 +627,10 @@ export default function Home() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <AlertTriangle size={20} color="#B45309" />
             <div style={{ flex: 1, fontSize: 13, fontWeight: 900, color: '#7C2D12' }}>
-              以下 {staleTrips.length} 個計畫超過 30 天未開啟，是否刪除？
+              {t('home.staleWarning', { count: staleTrips.length })}
             </div>
             <button
-              aria-label="關閉警告"
+              aria-label={t('common.close.warning')}
               onClick={() => {
                 setStaleWarningDismissed(true)
                 if (STALE_DISMISS_KEY) localStorage.setItem(STALE_DISMISS_KEY, 'true')
@@ -641,39 +644,39 @@ export default function Home() {
             ><X size={13} /></button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {staleTrips.map(t => (
-              <div key={t.code} style={{
+            {staleTrips.map(trip => (
+              <div key={trip.code} style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '9px 12px', borderRadius: 10,
                 background: 'rgba(255,252,244,0.85)',
                 border: '1px solid rgba(165,125,65,0.20)',
               }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ flex: 1, minWidth: 0 }} title={trip.name}>
                   <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--text-primary)',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {t.name}
+                    {trip.name}
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>
-                    {t.startDate} – {t.endDate}
+                    {trip.startDate} – {trip.endDate}
                   </div>
                 </div>
                 <button
-                  onClick={() => navigate(`/trip/${t.code}`)}
+                  onClick={() => navigate(`/trip/${trip.code}`)}
                   style={{
                     padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 900,
                     background: 'var(--bg-elevated)', border: '1.5px solid rgba(165,125,65,0.25)',
                     color: 'var(--text-secondary)', cursor: 'pointer',
                   }}
-                >保留</button>
+                >{t('common.keep')}</button>
                 <button
-                  onClick={() => handleDelete(t.code)}
+                  onClick={() => handleDelete(trip.code)}
                   style={{
                     padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 900,
                     background: 'linear-gradient(135deg,#EF4444,#B91C1C)',
                     boxShadow: '0 2px 0 #7F1D1D',
                     color: '#fff', border: 'none', cursor: 'pointer',
                   }}
-                >刪除</button>
+                >{t('common.delete')}</button>
               </div>
             ))}
           </div>

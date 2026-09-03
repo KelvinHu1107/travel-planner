@@ -37,6 +37,12 @@ const EXPENSE_CATEGORIES = [
 
 const DURATION_VALUES = [30, 60, 90, 120, 180, 240, 360, 480, 600, 720, 960, 1440]
 
+// CATEGORY 沒有 note/expense 條目，此處提供顯示用的預設樣式（編輯 note/expense 卡片時使用）
+const CARD_CFG_EXTRA = {
+  note:    { icon: '📝', IconComp: null, label: '筆記', color: '#5B21B6', bg: 'rgba(91,33,182,0.07)',  border: 'rgba(91,33,182,0.28)' },
+  expense: { icon: '💰', IconComp: null, label: '費用', color: '#92400E', bg: 'rgba(146,64,14,0.07)',  border: 'rgba(146,64,14,0.28)' },
+}
+
 function getDurationLabel(mins, t) {
   const h = Math.floor(mins / 60)
   const m = mins % 60
@@ -289,7 +295,7 @@ function NearbySearchSection({ lat, lng, pendingNearby, onAddNearby, onClearNear
 // ── 步驟二：填詳細資料 ──────────────────────
 function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, existingCards, onSubmit, onBack }) {
   const { t } = useLanguage()
-  const cfg = CATEGORY[category]
+  const cfg = CATEGORY[category] ?? CARD_CFG_EXTRA[category] ?? CATEGORY.attraction
   const isEdit = !!editCard
   const isPlaceCategory = PLACE_CATEGORIES.has(category)
   const [uploading, setUploading]                   = useState(false)
@@ -877,7 +883,14 @@ export default function AddCardModal({ defaultDay, defaultTime, onAdd, onEdit, o
   const handleSubmit = (formData) => {
     const { pendingNearby, ...mainData } = formData
     if (isEdit) {
-      onEdit({ ...editCard, ...mainData })
+      // Bug #12：編輯時只回寫真正可編輯的欄位，避免覆蓋其他人並發修改的 attachedNotes/attachedTodos/attachedExpenses/images 等
+      const {
+        attachedNotes: _an, attachedTodos: _at, attachedExpenses: _ae,
+        images: _img, storageUsedBytes: _sub,
+        id: _id, createdAt: _ct,
+        ...editableFields
+      } = mainData
+      onEdit({ id: editCard.id, ...editableFields })
     } else {
       onAdd({ ...mainData, day: defaultDay, id: `card-${Date.now()}` }, pendingNearby ?? null)
     }

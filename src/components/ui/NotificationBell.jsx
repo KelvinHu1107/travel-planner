@@ -34,7 +34,10 @@ function useNotificationRenderer() {
     switch (n.type) {
       case NOTIFICATION_TYPES.CARD_ADDED:    return t('notification.cardAdded',    { actor, title })
       case NOTIFICATION_TYPES.CARD_UPDATED:  return t('notification.cardUpdated',  { actor, title })
-      case NOTIFICATION_TYPES.CARD_DELETED:  return t('notification.cardDeleted',  { actor, title })
+      case NOTIFICATION_TYPES.CARD_DELETED:
+        // Bug #5：cardTitle 為空 → 表示清空全部卡片
+        if (!n.cardTitle) return t('notification.allCardsCleared', { actor })
+        return t('notification.cardDeleted', { actor, title })
       case NOTIFICATION_TYPES.MEMBER_JOINED: return t('notification.memberJoined', { actor: actorJoin })
       case NOTIFICATION_TYPES.MEMBER_LEFT:   return t('notification.memberLeft',   { actor })
       case NOTIFICATION_TYPES.TRIP_DELETED:  return t('notification.tripDeleted',  { trip: tripLabel })
