@@ -28,8 +28,8 @@ function convertAmount(amount, fromCur, toCur) {
   return twdAmount / (EXCHANGE_TO_TWD[toCur] ?? 1)
 }
 
-function fmt(amount, decimals = 0) {
-  return Number(amount).toLocaleString('zh-TW', {
+function fmt(amount, decimals = 0, lang = 'zh') {
+  return Number(amount).toLocaleString(lang === 'zh' ? 'zh-TW' : 'en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   })
@@ -89,7 +89,7 @@ export default function SettlementPage() {
   const { tripId } = useParams()
   const navigate   = useNavigate()
   const location   = useLocation()
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
 
   const [expenses,       setExpenses]       = useState([])
   const [currency,       setCurrency]       = useState('TWD')
@@ -258,7 +258,7 @@ export default function SettlementPage() {
                     </div>
                     {e.currency !== currency && (
                       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>
-                        ≈ {CURRENCY_FLAG_MAP[currency] ?? '💱'} {fmt(convertedAmt)} {currency}
+                        ≈ {CURRENCY_FLAG_MAP[currency] ?? '💱'} {fmt(convertedAmt, lang)} {currency}
                       </div>
                     )}
                   </div>
@@ -283,7 +283,7 @@ export default function SettlementPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-secondary)' }}>{t('expense.totalSpending')}</span>
                 <span style={{ fontSize: 20, fontWeight: 900, color: '#D97706' }}>
-                  {CURRENCY_FLAG_MAP[currency]} {fmt(total)} {currency}
+                  {CURRENCY_FLAG_MAP[currency]} {fmt(total, lang)} {currency}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -291,7 +291,7 @@ export default function SettlementPage() {
                   {t('settlement.perPerson', { count: users.length })}
                 </span>
                 <span style={{ fontSize: 18, fontWeight: 900, color: '#92400E' }}>
-                  {CURRENCY_FLAG_MAP[currency]} {fmt(avg)} {currency}
+                  {CURRENCY_FLAG_MAP[currency]} {fmt(avg, lang)} {currency}
                 </span>
               </div>
             </div>
@@ -323,14 +323,14 @@ export default function SettlementPage() {
                           <div style={{ fontSize: 11, fontWeight: 700,
                             color: isOver ? '#059669' : '#DC2626' }}>
                             {isOver
-                              ? t('settlement.overpaid',  { amount: `${fmt(diff, 1)} ${currency}` })
-                              : t('settlement.underpaid', { amount: `${fmt(diff, 1)} ${currency}` })}
+                              ? t('settlement.overpaid',  { amount: `${fmt(diff, 1)} ${currency}` }, lang)
+                              : t('settlement.underpaid', { amount: `${fmt(diff, 1)} ${currency}` }, lang)}
                           </div>
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: 16, fontWeight: 900, color: '#D97706' }}>
-                          {fmt(u.spent, 1)} {currency}
+                          {fmt(u.spent, 1, lang)} {currency}
                         </div>
                         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>{t('settlement.actualSpent')}</div>
                       </div>
@@ -376,7 +376,7 @@ export default function SettlementPage() {
                           background: 'rgba(59,130,246,0.10)', borderRadius: 99,
                           padding: '3px 12px', display: 'inline-block', marginTop: 2,
                         }}>
-                          {CURRENCY_FLAG_MAP[currency]} {fmt(tx.amount, 1)} {currency}
+                          {CURRENCY_FLAG_MAP[currency]} {fmt(tx.amount, 1, lang)} {currency}
                         </div>
                       </div>
                       <div style={{ textAlign: 'center', minWidth: 56 }}>
