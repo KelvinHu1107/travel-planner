@@ -96,9 +96,9 @@ export default function SettlementPage() {
   const [memberProfiles, setMemberProfiles] = useState([])
 
   useEffect(() => {
-    const unsub = subscribeToExpenses(tripId, setExpenses)
+    const unsub = subscribeToExpenses(tripId, setExpenses, () => navigate('/'))
     return () => unsub()
-  }, [tripId])
+  }, [tripId, navigate])
 
   useEffect(() => {
     getTrip(tripId)
@@ -258,7 +258,7 @@ export default function SettlementPage() {
                     </div>
                     {e.currency !== currency && (
                       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>
-                        ≈ {CURRENCY_FLAG_MAP[currency] ?? '💱'} {fmt(convertedAmt, lang)} {currency}
+                        ≈ {CURRENCY_FLAG_MAP[currency] ?? '💱'} {fmt(convertedAmt, 0, lang)} {currency}
                       </div>
                     )}
                   </div>
@@ -283,7 +283,7 @@ export default function SettlementPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-secondary)' }}>{t('expense.totalSpending')}</span>
                 <span style={{ fontSize: 20, fontWeight: 900, color: '#D97706' }}>
-                  {CURRENCY_FLAG_MAP[currency]} {fmt(total, lang)} {currency}
+                  {CURRENCY_FLAG_MAP[currency]} {fmt(total, 0, lang)} {currency}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -291,7 +291,7 @@ export default function SettlementPage() {
                   {t('settlement.perPerson', { count: users.length })}
                 </span>
                 <span style={{ fontSize: 18, fontWeight: 900, color: '#92400E' }}>
-                  {CURRENCY_FLAG_MAP[currency]} {fmt(avg, lang)} {currency}
+                  {CURRENCY_FLAG_MAP[currency]} {fmt(avg, 0, lang)} {currency}
                 </span>
               </div>
             </div>
@@ -323,8 +323,8 @@ export default function SettlementPage() {
                           <div style={{ fontSize: 11, fontWeight: 700,
                             color: isOver ? '#059669' : '#DC2626' }}>
                             {isOver
-                              ? t('settlement.overpaid',  { amount: `${fmt(diff, 1)} ${currency}` }, lang)
-                              : t('settlement.underpaid', { amount: `${fmt(diff, 1)} ${currency}` }, lang)}
+                              ? t('settlement.overpaid',  { amount: `${fmt(diff, 1, lang)} ${currency}` })
+                              : t('settlement.underpaid', { amount: `${fmt(diff, 1, lang)} ${currency}` })}
                           </div>
                         </div>
                       </div>
