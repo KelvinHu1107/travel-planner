@@ -36,6 +36,7 @@ function useNotificationRenderer() {
       case NOTIFICATION_TYPES.CARD_UPDATED:  return t('notification.cardUpdated',  { actor, title })
       case NOTIFICATION_TYPES.CARD_DELETED:  return t('notification.cardDeleted',  { actor, title })
       case NOTIFICATION_TYPES.MEMBER_JOINED: return t('notification.memberJoined', { actor: actorJoin })
+      case NOTIFICATION_TYPES.MEMBER_LEFT:   return t('notification.memberLeft',   { actor })
       case NOTIFICATION_TYPES.TRIP_DELETED:  return t('notification.tripDeleted',  { trip: tripLabel })
       // 舊資料相容（Bug #21 前的通知仍有 message 欄位）
       default: return n.message || ''

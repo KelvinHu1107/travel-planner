@@ -509,6 +509,7 @@ const zh = {
   'notification.cardUpdated':  '{{actor}} 更新了行程「{{title}}」',
   'notification.cardDeleted':  '{{actor}} 刪除了行程「{{title}}」',
   'notification.memberJoined': '{{actor}} 加入了旅遊計畫',
+  'notification.memberLeft':   '{{actor}} 離開了旅遊計畫',
   'notification.tripDeleted':  '旅遊計畫「{{trip}}」已被刪除',
   'notification.actor.default':'成員',
   'notification.actor.newMember':'新成員',
