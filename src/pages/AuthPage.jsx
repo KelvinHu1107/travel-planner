@@ -467,14 +467,22 @@ export default function AuthPage() {
   const isRegister = mode === 'register'
   const isForgot   = mode === 'forgot'
 
-  const customErrors = {
-    'passwords-mismatch': {
-      title: '兩次密碼不一致',
-      desc: '「密碼」和「確認密碼」的內容不相同。',
-      action: '請重新輸入，確保兩個密碼欄位完全一致',
-    },
-  }
   const displayErrorCode = errorCode
+
+  const getAuthError = (code) => {
+    const keyMap = {
+      'auth/user-not-found':        'auth.error.userNotFound',
+      'auth/wrong-password':        'auth.error.wrongPassword',
+      'auth/email-already-in-use':  'auth.error.emailInUse',
+      'auth/weak-password':         'auth.error.weakPassword',
+      'auth/invalid-email':         'auth.error.invalidEmail',
+      'auth/too-many-requests':     'auth.error.tooManyRequests',
+      'auth/network-request-failed':'auth.error.networkRequest',
+      'auth/popup-closed-by-user':  'auth.error.popupClosed',
+      'auth/operation-not-allowed': 'auth.error.operationNotAllowed',
+    }
+    return keyMap[code] ? t(keyMap[code]) : null
+  }
 
   const getDisplayErrInfo = (code) => {
     if (code === 'passwords-mismatch') {
@@ -484,8 +492,9 @@ export default function AuthPage() {
         action: t('auth.error.passwordMismatch.action'),
       }
     }
-    const base = getErrInfo(code)
-    return base
+    const authMsg = getAuthError(code)
+    if (authMsg) return { title: authMsg, desc: '', action: '' }
+    return getErrInfo(code)
   }
 
   return (

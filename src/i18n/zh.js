@@ -75,6 +75,16 @@ const zh = {
   'auth.error.passwordMismatch.title': '兩次密碼不一致',
   'auth.error.passwordMismatch.desc':  '「密碼」和「確認密碼」的內容不相同。',
   'auth.error.passwordMismatch.action':'請重新輸入，確保兩個密碼欄位完全一致',
+  'auth.error.userNotFound':           '找不到此帳號',
+  'auth.error.wrongPassword':          '密碼錯誤',
+  'auth.error.emailInUse':             '此 Email 已被使用',
+  'auth.error.weakPassword':           '密碼強度不足',
+  'auth.error.invalidEmail':           'Email 格式錯誤',
+  'auth.error.tooManyRequests':        '嘗試次數過多，請稍後再試',
+  'auth.error.networkRequest':         '網路連線失敗',
+  'auth.error.popupClosed':            '登入視窗已關閉',
+  'auth.error.operationNotAllowed':    '此登入方式尚未啟用',
+  'auth.error.default':                '登入失敗，請再試一次',
 
   // ── Home Page ────────────────────────────────────────
   'home.myTrips':            '我的旅遊計畫',
@@ -463,6 +473,8 @@ const zh = {
   'card.detail.duration.full': '共 {{hours}} 小時 {{mins}} 分',
   'card.detail.duration.hOnly': '共 {{hours}} 小時',
   'card.detail.duration.mOnly': '{{mins}} 分鐘',
+  'card.detail.uploadError':   '上傳失敗',
+  'card.detail.deleteImgError': '刪除圖片失敗',
 
   // ── ExpensePage ──────────────────────────────────────
   'expense.title':           '旅費記帳',
@@ -619,7 +631,7 @@ const zh = {
   'error.app.loading':       '載入中…',
   'error.checkNetwork':      '請檢查網路連線',
   'error.tripNotFound':      '找不到旅遊計畫，請確認邀請代碼是否正確',
-  'error.storageLimitExceeded': '已超過旅遊計畫儲存上限（50MB）',
+  'error.storageLimitExceeded': '已超過旅遊計畫儲存上限（100MB）',
   'error.cardNotFound':      '找不到此行程卡片',
   'error.joinFailed':        '加入失敗，請稍後再試',
 }

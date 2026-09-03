@@ -229,7 +229,7 @@ function CreateModal({ uid, onClose, onCreated }) {
           addCard(code, { type: 'transport', title: '[範例] 機場快線', day: d, startTime: '07:00', duration: 60, from: '出發地', to: '目的地' }),
           addCard(code, { type: 'note', title: '[範例] 旅行筆記', day: d, startTime: '20:00', duration: 30, content: '筆記類型可以記錄任何想法、提醒事項或旅行心得！點擊卡片可進入完整筆記頁面編輯。' }),
         ])
-      } catch (_) { /* 範例卡片失敗不影響計劃建立 */ }
+      } catch (err) { console.warn('[seed cards]', err) }
       onCreated?.()
       navigate(`/trip/${code}`)
     } catch (err) {
