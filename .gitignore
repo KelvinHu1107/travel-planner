@@ -26,3 +26,4 @@ functions/service-account.json
 *.njsproj
 *.sln
 *.sw?
+.claude/worktrees/
