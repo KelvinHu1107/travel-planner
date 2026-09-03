@@ -42,11 +42,12 @@ service cloud.firestore {
               || request.resource.data.ownerId == resource.data.ownerId)
           && (!('name' in request.resource.data) || request.resource.data.name.size() <= 100)
         )
-        // 新加入：僅可將自己 uid 加進 members，不可修改 ownerId、其他 members 不變
+        // 新加入：僅可將自己 uid 加進 members，且此次更新僅能動 members 這一個欄位（Bug #22）
         || (
           !(request.auth.uid in resource.data.members)
           && request.resource.data.members == resource.data.members.concat([request.auth.uid])
           && request.resource.data.ownerId == resource.data.ownerId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
         )
       );
       allow delete: if request.auth != null &&
@@ -80,15 +81,22 @@ service cloud.firestore {
       // Bug #1：建立通知必須符合下列條件（防止 spam）
       // - actorUid 必須是目前登入者
       // - createdAt 為 server timestamp（request.time）
-      // - expiresAt 最多 7 天後
+      // - expiresAt 最多 7 天後（Bug #1：允許 ~120 秒 client/server 時鐘偏移）
       // - read 必須為 false
+      // - Bug #6：actor 與收件人皆須為此 tripId 的成員（防止任意登入者對他人 spam）
+      // - Bug #6：type 只能是預期的 enum；tripName / cardTitle 長度上限 200
       allow create: if request.auth != null
         && request.resource.data.userId is string
         && request.resource.data.userId.size() > 0
         && request.resource.data.actorUid == request.auth.uid
         && request.resource.data.createdAt == request.time
-        && request.resource.data.expiresAt <= request.time + duration.value(7 * 24 * 60 * 60, 's')
-        && request.resource.data.read == false;
+        && request.resource.data.expiresAt <= request.time + duration.value(604920, 's')
+        && request.resource.data.read == false
+        && request.resource.data.type in ['card_added', 'card_updated', 'card_deleted', 'member_joined', 'trip_deleted', 'trip_auto_delete_warning', 'member_left']
+        && request.auth.uid in get(/databases/$(database)/documents/trips/$(request.resource.data.tripId)).data.members
+        && request.resource.data.userId in get(/databases/$(database)/documents/trips/$(request.resource.data.tripId)).data.members
+        && (!('tripName' in request.resource.data) || request.resource.data.tripName.size() < 200)
+        && (!('cardTitle' in request.resource.data) || request.resource.data.cardTitle.size() < 200);
       // Bug #36：更新僅允許將 read 從 false 改為 true，其他欄位不可動
       allow update: if request.auth != null && (
         isAdmin()

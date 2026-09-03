@@ -2199,8 +2199,9 @@ export default function TripBoard() {
     setTrip(prev => prev ? { ...prev, backgroundImage: url } : prev)
   }, [])
 
+  // Bug #28: 用 functional update 避免覆蓋 onSnapshot 帶來的並發欄位變更
   const handleTripUpdate = useCallback((updated) => {
-    setTrip(updated)
+    setTrip(prev => prev ? { ...prev, ...updated } : updated)
   }, [])
 
   const handleSeedCards = useCallback(async () => {

@@ -6,7 +6,7 @@ import {
 import { db } from './firebase'
 import {
   notifyCardAdded, notifyCardUpdated, notifyCardDeleted,
-  notifyMemberJoined, notifyTripDeleted, deleteNotificationsByTrip,
+  notifyMemberJoined, notifyMemberLeft, notifyTripDeleted, deleteNotificationsByTrip,
 } from './notificationService'
 
 // 提供給呼叫端傳入的觸發者資訊（optional actor）
@@ -139,7 +139,7 @@ export async function joinTrip(code, uid, actor = null) {
     notifyMemberJoined({
       members: data.members ?? [],
       actorUid: uid,
-      actorName: actor?.displayName || '新成員',
+      actorName: actor?.displayName || '',
       tripId: upperCode,
       tripName: data.name ?? '',
     }).catch(() => {})
@@ -174,10 +174,10 @@ export async function addCard(tripId, cardData, actor = null) {
       notifyCardAdded({
         members: meta.members,
         actorUid: actor.uid,
-        actorName: actor.displayName || '成員',
+        actorName: actor.displayName || '',
         tripId,
         tripName: meta.name,
-        cardTitle: data.title || '未命名',
+        cardTitle: data.title || '',
       }).catch(() => {})
     }).catch(() => {})
   }
@@ -201,10 +201,10 @@ export async function updateCard(tripId, cardId, updates, actor = null) {
         notifyCardUpdated({
           members: meta.members,
           actorUid: actor.uid,
-          actorName: actor.displayName || '成員',
+          actorName: actor.displayName || '',
           tripId,
           tripName: meta.name,
-          cardTitle: cardTitle || '未命名',
+          cardTitle: cardTitle || '',
         }).catch(() => {})
       }
     })().catch(() => {})
@@ -228,10 +228,10 @@ export async function deleteCard(tripId, cardId, actor = null) {
       notifyCardDeleted({
         members: meta.members,
         actorUid: actor.uid,
-        actorName: actor.displayName || '成員',
+        actorName: actor.displayName || '',
         tripId,
         tripName: meta.name,
-        cardTitle: cardTitle || '未命名',
+        cardTitle: cardTitle || '',
       }).catch(() => {})
     }).catch(() => {})
   }
@@ -290,7 +290,7 @@ export async function deleteTrip(tripId, uid, actor = null) {
     notifyTripDeleted({
       members,
       actorUid: actor.uid,
-      actorName: actor.displayName || '成員',
+      actorName: actor.displayName || '',
       tripId,
       tripName,
     }).catch(() => {})
@@ -316,18 +316,10 @@ export async function deleteTrip(tripId, uid, actor = null) {
     await updateDoc(doc(db, 'users', uid), { tripCodes: arrayRemove(tripId) }).catch(() => {})
   }
 
-  // Bug #9：刪除此 trip 相關的既有通知，包含 trip_deleted，避免重試累積重複
-  try {
-    const q = query(
-      collection(db, 'notifications'),
-      where('tripId', '==', tripId),
-      where('type', 'in', ['card_added', 'card_updated', 'card_deleted', 'member_joined', 'trip_auto_delete_warning', 'trip_deleted'])
-    )
-    const snap = await getDocs(q)
-    await Promise.all(snap.docs.map(d => deleteDoc(d.ref).catch(() => {})))
-  } catch {
-    // 若 in 查詢失敗（如舊 SDK），fallback 刪除全部
-    try { await deleteNotificationsByTrip(tripId) } catch {}
+  // Bug #2/#9/#26/#32: 只清理 actor 自己送出的通知（Firestore rule 允許 actorUid == auth.uid 刪除）
+  // 複合 where('type','in',...) 查詢需要額外索引且違反 read rule，改用 actorUid 過濾
+  if (uid) {
+    deleteNotificationsByTrip(tripId, uid).catch(() => {})
   }
 }
 
@@ -337,10 +329,40 @@ export async function updateTripLastVisited(tripId) {
 }
 
 // 離開旅遊計畫（非擁有者）
-export async function leaveTrip(tripId, uid) {
+export async function leaveTrip(tripId, uid, actor = null) {
+  const tripSnap = await getDoc(doc(db, 'trips', tripId))
+  const tripData = tripSnap.exists() ? tripSnap.data() : {}
+  const members  = tripData.members ?? []
+  const tripName = tripData.name ?? ''
+
   await updateDoc(doc(db, 'trips', tripId), { members: arrayRemove(uid) })
   if (uid) {
-    await updateDoc(doc(db, 'users', uid), { tripCodes: arrayRemove(tripId) })
+    await updateDoc(doc(db, 'users', uid), { tripCodes: arrayRemove(tripId) }).catch(() => {})
+  }
+
+  // 通知其他成員有人離開（fire-and-forget）
+  const remaining = members.filter(m => m !== uid)
+  if (actor?.uid && remaining.length > 0) {
+    notifyMemberLeft({
+      members: remaining,
+      actorUid: actor.uid,
+      actorName: actor.displayName || '',
+      tripId,
+      tripName,
+    }).catch(() => {})
+  }
+
+  // 清理離開者自己的 trip 相關通知（leaver 是 userId，符合 rule 允許自刪）
+  if (uid) {
+    try {
+      const q = query(
+        collection(db, 'notifications'),
+        where('tripId', '==', tripId),
+        where('userId', '==', uid),
+      )
+      const snap = await getDocs(q)
+      await Promise.all(snap.docs.map(d => deleteDoc(d.ref).catch(() => {})))
+    } catch {}
   }
 }
 

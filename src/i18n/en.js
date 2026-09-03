@@ -509,6 +509,7 @@ const en = {
   'notification.cardUpdated':  '{{actor}} updated "{{title}}"',
   'notification.cardDeleted':  '{{actor}} deleted "{{title}}"',
   'notification.memberJoined': '{{actor}} joined the trip',
+  'notification.memberLeft':   '{{actor}} left the trip',
   'notification.tripDeleted':  'Trip "{{trip}}" has been deleted',
   'notification.actor.default':'A member',
   'notification.actor.newMember':'A new member',

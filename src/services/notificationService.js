@@ -14,6 +14,7 @@ export const NOTIFICATION_TYPES = {
   CARD_UPDATED:            'card_updated',
   CARD_DELETED:            'card_deleted',
   MEMBER_JOINED:           'member_joined',
+  MEMBER_LEFT:             'member_left',
   TRIP_DELETED:            'trip_deleted',
   TRIP_AUTO_DELETE_WARN:   'trip_auto_delete_warning',
 }
@@ -75,9 +76,16 @@ export async function deleteNotification(notificationId) {
 }
 
 // 刪除某 trip 的所有未到期通知（trip 被刪時呼叫）
-// Bug #9：也刪 trip_deleted 通知，讓重試不會累積重複
-export async function deleteNotificationsByTrip(tripId) {
-  const q = query(collection(db, 'notifications'), where('tripId', '==', tripId))
+// Bug #2/#26/#32：查詢須含 actorUid（== auth.uid）才能通過 Firestore rule 讀取權限；
+// 只清理「本使用者作為 actor 送出」的通知，符合 rule delete 條件（actorUid == auth.uid）。
+// actorUid 為必要參數，未帶入即不執行。
+export async function deleteNotificationsByTrip(tripId, actorUid) {
+  if (!tripId || !actorUid) return
+  const q = query(
+    collection(db, 'notifications'),
+    where('tripId', '==', tripId),
+    where('actorUid', '==', actorUid),
+  )
   const snap = await getDocs(q)
   await Promise.all(snap.docs.map(d => deleteDoc(d.ref).catch(() => {})))
 }
@@ -131,6 +139,13 @@ export async function notifyMemberJoined({ members, actorUid, actorName, tripId,
   await createNotificationsForMembers({
     members, actorUid, actorName, tripId, tripName,
     type: NOTIFICATION_TYPES.MEMBER_JOINED,
+  })
+}
+
+export async function notifyMemberLeft({ members, actorUid, actorName, tripId, tripName }) {
+  await createNotificationsForMembers({
+    members, actorUid, actorName, tripId, tripName,
+    type: NOTIFICATION_TYPES.MEMBER_LEFT,
   })
 }
 

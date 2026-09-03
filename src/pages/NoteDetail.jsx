@@ -148,6 +148,9 @@ export default function NoteDetail() {
   // 使用者已編輯中的欄位（避免遠端更新覆蓋當前輸入）
   const localDirtyRef = useRef({ title: false, content: false })
 
+  // Bug #15: unmount 時清除 pending 的 auto-save timer，避免跨頁面寫入
+  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current) }, [])
+
   // Bug #39：改用 onSnapshot 訂閱卡片，即時同步遠端變更
   useEffect(() => {
     const ref = doc(db, 'trips', tripId, 'cards', noteId)

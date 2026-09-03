@@ -6,7 +6,7 @@ import {
   MapPin, FileText, Clock, ClipboardList, CalendarDays,
 } from 'lucide-react'
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject, getMetadata } from 'firebase/storage'
-import { arrayRemove } from 'firebase/firestore'
+import { arrayRemove, arrayUnion } from 'firebase/firestore'
 import { storage } from '../../services/firebase'
 import {
   addStorageUsedBytes, getStorageUsedMB,
@@ -271,6 +271,11 @@ function AttachedNoteItem({ note, tripId, onSave, onRequestDelete }) {
   const [draft, setDraft]     = useState({ ...note })
   const noteTextareaRef = useRef(null)
   const cfg = CATEGORY.note
+
+  // Bug #20: 非編輯狀態下，遠端更新時同步 draft（避免覆蓋他人修改）
+  useEffect(() => {
+    if (!editing) setDraft({ ...note })
+  }, [note, editing])
 
   const handleSave = () => { onSave(draft); setEditing(false) }
   const handleCancel = () => { setDraft({ ...note }); setEditing(false) }
@@ -727,7 +732,7 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
     setUploadingImg(true); setCardImgErr('')
     try {
       const urls = await uploadImages(files, tripId)
-      onUpdate?.(card.id, { images: [...(card.images ?? []), ...urls] })
+      await onUpdate?.(card.id, { images: arrayUnion(...urls) })
     } catch (err) { setCardImgErr('上傳失敗：' + err.message) }
     finally { setUploadingImg(false); e.target.value = '' }
   }

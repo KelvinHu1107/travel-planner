@@ -82,9 +82,10 @@ export default function ExpensePage() {
   }, [location.state?.autoOpen])
 
   useEffect(() => {
-    const unsub = subscribeToExpenses(tripId, setExpenses)
+    // Bug #30: 加 onError handler — 失去 trip 存取權時導回首頁
+    const unsub = subscribeToExpenses(tripId, setExpenses, () => navigate('/'))
     return () => unsub()
-  }, [tripId])
+  }, [tripId, navigate])
 
   useEffect(() => {
     if (trip && !formDay) {

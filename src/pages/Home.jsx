@@ -826,14 +826,14 @@ export default function Home() {
 
       {/* Modals */}
       {modal === 'create' && (
-        <CreateModal uid={currentUser?.uid} onClose={() => setModal(null)} onCreated={loadTrips} />
+        <CreateModal uid={currentUser?.uid} onClose={() => setModal(null)} onCreated={() => {}} />
       )}
       {modal === 'join' && (
         <JoinModal
           uid={currentUser?.uid}
           actor={{ uid: currentUser?.uid, displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '' }}
           onClose={() => { setModal(null); setJoinParams({ code: '' }) }}
-          onJoined={loadTrips}
+          onJoined={() => {}}
           initialCode={joinParams.code}
         />
       )}
