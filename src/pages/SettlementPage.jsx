@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
-import { subscribeToExpenses, getTrip, getMemberProfiles } from '../services/firestore'
+import { subscribeToExpenses, getTrip, getMemberProfiles, updateExpenseIncluded } from '../services/firestore'
 import { useLanguage } from '../i18n/LanguageContext'
 
 const CURRENCY_FLAG_MAP = {
@@ -93,19 +92,11 @@ export default function SettlementPage() {
   const { t } = useLanguage()
 
   const [expenses,       setExpenses]       = useState([])
-  const [checked,        setChecked]        = useState({})
   const [currency,       setCurrency]       = useState('TWD')
   const [memberProfiles, setMemberProfiles] = useState([])
 
   useEffect(() => {
-    const unsub = subscribeToExpenses(tripId, data => {
-      setExpenses(data)
-      setChecked(prev => {
-        const next = { ...prev }
-        data.forEach(e => { if (!(e.id in next)) next[e.id] = true })
-        return next
-      })
-    })
+    const unsub = subscribeToExpenses(tripId, setExpenses)
     return () => unsub()
   }, [tripId])
 
@@ -119,16 +110,24 @@ export default function SettlementPage() {
       .catch(() => {})
   }, [tripId])
 
-  const selectedExpenses = expenses.filter(e => checked[e.id])
+  const isChecked = (e) => e.included !== false
+  const selectedExpenses = expenses.filter(isChecked)
   const { users, total, avg, transactions } = calculateSettlement(selectedExpenses, currency, memberProfiles, t('settlement.unknown'))
 
   const toggleAll = (val) => {
-    const next = {}
-    expenses.forEach(e => { next[e.id] = val })
-    setChecked(next)
+    // 批次寫入 Firestore；本地不用 optimistic state，訂閱會自動更新
+    expenses.forEach(e => {
+      if (isChecked(e) !== val) {
+        updateExpenseIncluded(tripId, e.id, val).catch(() => {})
+      }
+    })
   }
 
-  const selectedCount = Object.values(checked).filter(Boolean).length
+  const toggleOne = (e) => {
+    updateExpenseIncluded(tripId, e.id, !isChecked(e)).catch(() => {})
+  }
+
+  const selectedCount = expenses.filter(isChecked).length
 
   const cardStyle = {
     padding: '16px 20px', borderRadius: 16,
@@ -216,22 +215,22 @@ export default function SettlementPage() {
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {expenses.map(e => {
-              const isChecked = !!checked[e.id]
+              const included = isChecked(e)
               const convertedAmt = convertAmount(e.amount, e.currency, currency)
               return (
                 <label key={e.id} style={{
                   display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer',
                   padding: '12px 16px', borderRadius: 14,
-                  background: isChecked ? 'rgba(255,252,244,0.97)' : 'rgba(240,235,220,0.50)',
-                  border: `1.5px solid ${isChecked ? 'rgba(165,125,65,0.22)' : 'rgba(165,125,65,0.10)'}`,
-                  boxShadow: isChecked ? '0 2px 8px rgba(100,60,10,0.06)' : 'none',
-                  opacity: isChecked ? 1 : 0.5,
+                  background: included ? 'rgba(255,252,244,0.97)' : 'rgba(240,235,220,0.50)',
+                  border: `1.5px solid ${included ? 'rgba(165,125,65,0.22)' : 'rgba(165,125,65,0.10)'}`,
+                  boxShadow: included ? '0 2px 8px rgba(100,60,10,0.06)' : 'none',
+                  opacity: included ? 1 : 0.5,
                   transition: 'all 0.15s',
                 }}>
                   <input
                     type="checkbox"
-                    checked={isChecked}
-                    onChange={() => setChecked(prev => ({ ...prev, [e.id]: !prev[e.id] }))}
+                    checked={included}
+                    onChange={() => toggleOne(e)}
                     style={{ width: 18, height: 18, accentColor: '#B45309', flexShrink: 0, cursor: 'pointer' }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>

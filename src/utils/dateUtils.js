@@ -26,3 +26,8 @@ export function getTripDuration(startDate, endDate) {
   const end = new Date(endDate)
   return Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1
 }
+
+// Bug #8：取得本地日期字串 YYYY-MM-DD（避免使用 toISOString() 造成 UTC 時區偏移）
+export function getLocalDateStr(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}

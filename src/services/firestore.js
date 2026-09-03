@@ -284,10 +284,10 @@ export async function deleteTrip(tripId, uid, actor = null) {
   const members = tripSnap.exists() ? (tripSnap.data().members ?? []) : []
   const tripName = tripSnap.exists() ? (tripSnap.data().name ?? '') : ''
 
-  // Bug #6/#7：通知走 fire-and-forget，不 block 刪除流程
-  // 注意：仍在刪除前觸發，這樣通知的建立時機還來得及
+  // Bug #4：必須 await 通知建立完成後才能刪除 trip doc
+  // notification create rule 會 get(trips/tripId).data.members，trip 被刪後會失敗
   if (actor?.uid && members.length > 0) {
-    notifyTripDeleted({
+    await notifyTripDeleted({
       members,
       actorUid: actor.uid,
       actorName: actor.displayName || '',
@@ -335,21 +335,22 @@ export async function leaveTrip(tripId, uid, actor = null) {
   const members  = tripData.members ?? []
   const tripName = tripData.name ?? ''
 
-  await updateDoc(doc(db, 'trips', tripId), { members: arrayRemove(uid) })
-  if (uid) {
-    await updateDoc(doc(db, 'users', uid), { tripCodes: arrayRemove(tripId) }).catch(() => {})
-  }
-
-  // 通知其他成員有人離開（fire-and-forget）
+  // Bug #2/#3：先發送通知（此時 actor 仍為 members），再 arrayRemove
+  // 通知的 create rule 需 auth.uid in trip.members，一定要在移除前建立
   const remaining = members.filter(m => m !== uid)
   if (actor?.uid && remaining.length > 0) {
-    notifyMemberLeft({
+    await notifyMemberLeft({
       members: remaining,
       actorUid: actor.uid,
       actorName: actor.displayName || '',
       tripId,
       tripName,
     }).catch(() => {})
+  }
+
+  await updateDoc(doc(db, 'trips', tripId), { members: arrayRemove(uid) })
+  if (uid) {
+    await updateDoc(doc(db, 'users', uid), { tripCodes: arrayRemove(tripId) }).catch(() => {})
   }
 
   // 清理離開者自己的 trip 相關通知（leaver 是 userId，符合 rule 允許自刪）
@@ -473,15 +474,30 @@ export async function getMemberProfiles(uids) {
 }
 
 // 清空計畫的所有行程卡片
-export async function clearAllCards(tripId) {
+// Bug #5：加 actor 並發送單一「清空」通知，避免對每張卡片各發一則
+export async function clearAllCards(tripId, actor = null) {
   const snap = await getDocs(cardsCol(tripId))
   await Promise.all(snap.docs.map(d => deleteDoc(d.ref)))
+
+  if (actor?.uid && snap.docs.length > 0) {
+    const meta = await getTripMeta(tripId).catch(() => null)
+    if (meta) {
+      // 沿用 card_deleted 型別，用 cardTitle: '' 表示「清空全部」
+      notifyCardDeleted({
+        members: meta.members,
+        actorUid: actor.uid,
+        actorName: actor.displayName || '',
+        tripId,
+        tripName: meta.name,
+        cardTitle: '',
+      }).catch(() => {})
+    }
+  }
 }
 
-// 重設計畫加入密碼（同時更新明文與雜湊）
-export async function updateTripPassword(tripId, newPassword) {
-  const passwordHash = await hashPassword(newPassword)
-  await updateDoc(doc(db, 'trips', tripId), { password: newPassword, passwordHash })
+// 重設計畫加入密碼（Bug #14：只儲存 hash，不儲存明文）
+export async function updateTripPassword(tripId, passwordHash) {
+  await updateDoc(doc(db, 'trips', tripId), { passwordHash })
 }
 
 // 將筆記附加到某張卡片（並刪除原來的筆記卡）
@@ -601,6 +617,11 @@ export async function deleteExpense(tripId, expenseId) {
 
 export async function updateExpense(tripId, expenseId, updates) {
   await updateDoc(doc(db, 'trips', tripId, 'expenses', expenseId), updates)
+}
+
+// 更新開銷是否列入結算（勾選狀態）
+export async function updateExpenseIncluded(tripId, expenseId, included) {
+  await updateDoc(doc(db, 'trips', tripId, 'expenses', expenseId), { included })
 }
 
 export async function submitFeedback({ tripId, tripName, userId, userEmail, message }) {

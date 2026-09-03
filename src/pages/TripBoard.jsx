@@ -32,7 +32,7 @@ const escHtml = s => String(s ?? '')
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;')
-import { getTripDuration, getDaysInRange } from '../utils/dateUtils'
+import { getTripDuration, getDaysInRange, getLocalDateStr } from '../utils/dateUtils'
 import { loadGoogleMaps } from '../services/maps'
 import BoardLayout from '../components/board/BoardLayout'
 import AddCardModal from '../components/modals/AddCardModal'
@@ -64,7 +64,7 @@ function makeSeedCards(firstDay) {
 }
 
 // ── 設定 Modal ───────────────────────────────
-function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobile }) {
+function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobile, cards = [] }) {
   const navigate = useNavigate()
   const { currentUser, signOut, changePassword, isEmailUser } = useAuth()
   const { restartTutorial } = useTutorial()
@@ -125,12 +125,14 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
     setEditError(''); setEditSaving(true)
     try {
       await updateTrip(tripId, { name: newName })
-      onTripUpdate({ ...trip, name: newName })
+      onTripUpdate({ name: newName })
       setEditSuccess(true); setTimeout(() => setEditSuccess(false), 2000)
     } catch { setEditError(t('settings.trip.error.name')) } finally { setEditSaving(false) }
   }
 
   // 日期：選定即驗證並儲存
+  // Bug #11：若日期縮短造成部分卡片超出新範圍，需先確認並將其移至第一天
+  const [pendingDates, setPendingDates] = useState(null) // { startDate, endDate, orphaned }
   const handleDateChange = async (field, value) => {
     const newForm = { ...editForm, [field]: value }
     setEditForm(newForm)
@@ -140,14 +142,46 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
     if (startDate > endDate) { setEditError(t('create.error.dateOrder')); return }
     // Bug #24：日期範圍最多 60 天（Bug #15：使用 Math.round 避免 DST 導致 off-by-one）
     const days = Math.round((new Date(endDate) - new Date(startDate)) / (24 * 60 * 60 * 1000)) + 1
-    if (days > 60) { setEditError('日期範圍最多 60 天，請縮短行程時間'); return }
+    if (days > 60) { setEditError(t('settings.dateRangeMax')); return }
     if (startDate === trip?.startDate && endDate === trip?.endDate) return
+
+    // Bug #11：檢查是否有卡片超出新的日期範圍
+    const newDays = getDaysInRange(startDate, endDate)
+    const orphaned = cards.filter(c => c.day && !newDays.includes(c.day))
+    if (orphaned.length > 0) {
+      setPendingDates({ startDate, endDate, orphaned })
+      return
+    }
+
+    await saveDateChange(startDate, endDate, [])
+  }
+
+  const saveDateChange = async (startDate, endDate, orphaned) => {
     setEditSaving(true)
     try {
+      // 先將 orphaned 卡片移至新的第一天，再更新 trip 日期
+      if (orphaned.length > 0) {
+        await Promise.all(orphaned.map(c =>
+          updateCard(tripId, c.id, { day: startDate })
+        ))
+      }
       await updateTrip(tripId, { startDate, endDate })
-      onTripUpdate({ ...trip, startDate, endDate })
+      onTripUpdate({ startDate, endDate })
       setEditSuccess(true); setTimeout(() => setEditSuccess(false), 2000)
     } catch { setEditError(t('settings.trip.error.date')) } finally { setEditSaving(false) }
+  }
+
+  const confirmDateChange = async () => {
+    if (!pendingDates) return
+    const { startDate, endDate, orphaned } = pendingDates
+    setPendingDates(null)
+    await saveDateChange(startDate, endDate, orphaned)
+  }
+
+  const cancelDateChange = () => {
+    // 還原表單至 trip 的原值
+    setEditForm({ name: trip?.name ?? '', startDate: trip?.startDate ?? '', endDate: trip?.endDate ?? '' })
+    setPendingDates(null)
   }
 
   // Bug #18/#20/#21：加 loading state
@@ -198,7 +232,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
     } catch (err) {
       console.error(err)
       // Bug #21：失敗顯示錯誤
-      setBgError('背景圖片上傳失敗：' + (err?.message || '未知錯誤'))
+      setBgError(t('settings.bgUploadError', { message: err?.message || t('common.error') }))
     } finally { setUploading(false) }
   }
 
@@ -207,19 +241,22 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
       await updateTrip(tripId, { backgroundImage: null })
       onBgChange(null)
     } catch (err) {
-      setBgError('清除背景失敗：' + (err?.message || '未知錯誤'))
+      setBgError(t('settings.bgClearError', { message: err?.message || t('common.error') }))
     }
   }
 
   const handleClearCards = async () => {
     setBusyAction('clear')
     try {
-      await clearAllCards(tripId)
+      await clearAllCards(tripId, {
+        uid: currentUser?.uid,
+        displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
+      })
       setConfirmClear(false)
       onClose()
     } catch (err) {
       console.error(err)
-      setEditError('清空卡片失敗：' + (err?.message || '未知錯誤'))
+      setEditError(t('settings.clearCardsError', { message: err?.message || t('common.error') }))
     } finally { setBusyAction(null) }
   }
 
@@ -234,18 +271,21 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
       navigate('/', { replace: true })
     } catch (err) {
       console.error(err)
-      setEditError('刪除計畫失敗：' + (err?.message || '未知錯誤'))
+      setEditError(t('settings.deleteTripError', { message: err?.message || t('common.error') }))
     } finally { setBusyAction(null) }
   }
 
   const handleLeaveTrip = async () => {
     setBusyAction('leave')
     try {
-      await leaveTrip(tripId, currentUser?.uid)
+      await leaveTrip(tripId, currentUser?.uid, {
+        uid: currentUser?.uid,
+        displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
+      })
       navigate('/', { replace: true })
     } catch (err) {
       console.error(err)
-      setEditError('離開計畫失敗：' + (err?.message || '未知錯誤'))
+      setEditError(t('settings.leaveTripError', { message: err?.message || t('common.error') }))
     } finally { setBusyAction(null) }
   }
 
@@ -349,6 +389,30 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                       onChange={e => handleDateChange('endDate', e.target.value)} />
                   </div>
                 </div>
+                {/* Bug #11：卡片會被移動的確認 */}
+                {pendingDates && (
+                  <div style={{
+                    padding: '12px 14px', borderRadius: 12,
+                    background: 'rgba(217,119,6,0.08)', border: '1.5px solid rgba(217,119,6,0.35)',
+                    display: 'flex', flexDirection: 'column', gap: 10,
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, color: '#92400E' }}>
+                      ⚠️ {t('settings.orphanedCards', { count: pendingDates.orphaned.length })}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={cancelDateChange} style={{
+                        flex: 1, padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 900,
+                        border: '1.5px solid rgba(165,125,65,0.28)', background: 'var(--bg-elevated)',
+                        color: 'var(--text-muted)', cursor: 'pointer',
+                      }}>{t('common.cancel')}</button>
+                      <button onClick={confirmDateChange} style={{
+                        flex: 1, padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 900,
+                        border: 'none', background: 'linear-gradient(135deg,#D97706,#B45309)',
+                        color: '#fff', cursor: 'pointer', boxShadow: '0 3px 0 #78350F',
+                      }}>{t('common.confirm')}</button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 背景圖片 */}
@@ -401,7 +465,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                       <span style={{ fontSize: 12, fontWeight: 800, color: '#DC2626', flex: 1 }}>{t('settings.danger.confirmClear')}</span>
                       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                         <button onClick={() => setConfirmClear(false)} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 11, fontWeight: 900, cursor: 'pointer', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t('common.cancel')}</button>
-                        <button onClick={handleClearCards} disabled={busyAction === 'clear'} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 900, cursor: busyAction === 'clear' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: busyAction === 'clear' ? 0.7 : 1 }}>{busyAction === 'clear' ? '處理中…' : t('common.confirm.clear')}</button>
+                        <button onClick={handleClearCards} disabled={busyAction === 'clear'} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 900, cursor: busyAction === 'clear' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: busyAction === 'clear' ? 0.7 : 1 }}>{busyAction === 'clear' ? t('common.processing') : t('common.confirm.clear')}</button>
                       </div>
                     </div>
                   )}
@@ -418,7 +482,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                         <span style={{ fontSize: 12, fontWeight: 800, color: '#DC2626', flex: 1 }}>{t('settings.danger.confirmDelete')}</span>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                           <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 11, fontWeight: 900, cursor: 'pointer', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t('common.cancel')}</button>
-                          <button onClick={handleDeleteTrip} disabled={busyAction === 'delete'} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#B91C1C', color: '#fff', fontSize: 11, fontWeight: 900, cursor: busyAction === 'delete' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: busyAction === 'delete' ? 0.7 : 1 }}>{busyAction === 'delete' ? '刪除中…' : t('common.confirm.delete')}</button>
+                          <button onClick={handleDeleteTrip} disabled={busyAction === 'delete'} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#B91C1C', color: '#fff', fontSize: 11, fontWeight: 900, cursor: busyAction === 'delete' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: busyAction === 'delete' ? 0.7 : 1 }}>{busyAction === 'delete' ? t('common.deleting') : t('common.confirm.delete')}</button>
                         </div>
                       </div>
                     )
@@ -435,7 +499,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                         <span style={{ fontSize: 12, fontWeight: 800, color: '#DC2626', flex: 1 }}>{t('settings.danger.confirmLeave')}</span>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                           <button onClick={() => setConfirmLeave(false)} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 11, fontWeight: 900, cursor: 'pointer', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{t('common.cancel')}</button>
-                          <button onClick={handleLeaveTrip} disabled={busyAction === 'leave'} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 900, cursor: busyAction === 'leave' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: busyAction === 'leave' ? 0.7 : 1 }}>{busyAction === 'leave' ? '離開中…' : t('common.confirm.leave')}</button>
+                          <button onClick={handleLeaveTrip} disabled={busyAction === 'leave'} style={{ flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 900, cursor: busyAction === 'leave' ? 'wait' : 'pointer', whiteSpace: 'nowrap', opacity: busyAction === 'leave' ? 0.7 : 1 }}>{busyAction === 'leave' ? t('common.leaving') : t('common.confirm.leave')}</button>
                         </div>
                       </div>
                     )
@@ -1031,7 +1095,7 @@ function TopBar({ trip, tripId, onShowSettings, isMobile, onToggleSidebar, sideb
         {/* 分隔線 */}
         <div style={{ width: 1, height: 24, background: 'rgba(165,125,65,0.25)', flexShrink: 0 }} />
         <div style={{ minWidth: 0 }}>
-          <h1 style={{ fontSize: isMobile ? 14 : 17, fontWeight: 900, color: 'var(--text-primary)',
+          <h1 title={trip?.name} style={{ fontSize: isMobile ? 14 : 17, fontWeight: 900, color: 'var(--text-primary)',
             lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             maxWidth: isMobile ? 130 : 'none' }}>
             {trip?.name || '載入中…'}
@@ -1154,7 +1218,7 @@ function ListView({ cards, trip, onCardClick, onDeleteCard }) {
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '0 4px 40px' }}>
       {days.map((day, di) => {
-        const dayCards = cards.filter(c => c.day === day).sort((a, b) => a.startTime.localeCompare(b.startTime))
+        const dayCards = cards.filter(c => c.day === day).sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? ''))
         const date = new Date(day + 'T00:00:00')
         const label = `${date.getMonth()+1}/${date.getDate()} ${WEEKDAYS[date.getDay()]}`
         return (
@@ -1261,7 +1325,7 @@ function MobileTopBar({ trip, tripId, navigate, onSettings, toggleMode, isMobile
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>←</button>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-primary)',
+          <div title={trip?.name} style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-primary)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {trip?.name || '載入中…'}
           </div>
@@ -1287,11 +1351,14 @@ function MobileTopBar({ trip, tripId, navigate, onSettings, toggleMode, isMobile
 }
 
 // ── 手機版：日期 Tab 欄 ─────────────────────
-const WEEKDAYS_SHORT = ['日','一','二','三','四','五','六']
+const WEEKDAYS_SHORT_ZH = ['日','一','二','三','四','五','六']
+const WEEKDAYS_SHORT_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
 function DayTabBar({ trip, mobileDay, onSelect, searchVisible, onSearchToggle }) {
+  const { lang } = useLanguage()
+  const WEEKDAYS_SHORT = lang === 'zh' ? WEEKDAYS_SHORT_ZH : WEEKDAYS_SHORT_EN
   const days    = trip ? getDaysInRange(trip.startDate, trip.endDate) : []
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateStr()
   const tabsRef  = useRef(null)
   const activeRef = useRef(null)
 
@@ -1451,7 +1518,7 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
   const [weatherError, setWeatherError] = useState(null)
   const { tutorialActive } = useTutorial()
 
-  const todayStr  = new Date().toISOString().split('T')[0]
+  const todayStr  = getLocalDateStr()
   const nowHHMM   = new Date().toTimeString().slice(0, 5)
   const WEEKDAYS  = ['週日','週一','週二','週三','週四','週五','週六']
 
@@ -1780,7 +1847,7 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
 function MobileOverview({ trip, cards, onCardClick, onDeleteCard, onDaySelect, searchQuery }) {
   const days = getDaysInRange(trip.startDate, trip.endDate)
   const WEEKDAYS = ['週日','週一','週二','週三','週四','週五','週六']
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateStr()
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
 
   const filteredCards = searchQuery.trim()
@@ -1938,6 +2005,7 @@ export default function TripBoard() {
   const { isMobile } = useWindowSize()
   const { isMobileMode, toggleMode } = useViewMode()
   const { tutorialActive, currentStepData, nextStep } = useTutorial()
+  const { t } = useLanguage()
   const [trip, setTrip]                   = useState(null)
   const [loading, setLoading]             = useState(true)
   const [error, setError]                 = useState('')
@@ -1998,7 +2066,7 @@ export default function TripBoard() {
         setTrip(data)
         updateTripLastVisited(tripId).catch(() => {})
         // Initialize mobile day: restore saved day if valid, else today or overview
-        const todayStr = new Date().toISOString().split('T')[0]
+        const todayStr = getLocalDateStr()
         const tripDays = getDaysInRange(data.startDate, data.endDate)
         const savedDay = sessionStorage.getItem(mobileDayKey)
         if (savedDay && tripDays.includes(savedDay)) {
@@ -2223,7 +2291,7 @@ export default function TripBoard() {
 
     const cardsByDay = days.map(day => ({
       day,
-      cards: cards.filter(c => c.day === day).sort((a, b) => a.startTime.localeCompare(b.startTime)),
+      cards: cards.filter(c => c.day === day).sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? '')),
     }))
 
     const TYPE_ICON = { attraction: '📍', transport: '🚌' }
@@ -2276,14 +2344,14 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
 
     const win = window.open('', '_blank')
     if (!win) {
-      alert('⚠️ 請允許此頁面開啟彈出視窗以匯出 PDF（瀏覽器設定 → 允許彈出視窗）')
+      alert('⚠️ ' + t('settings.pdfPopupBlocked'))
       setPdfToast(false)
       return
     }
     win.document.write(html)
     win.document.close()
     setTimeout(() => win.print(), 600)
-  }, [trip, cards])
+  }, [trip, cards, t])
 
   const boardCards = cards.filter(c => c.type !== 'expense')
 
@@ -2358,6 +2426,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
           onBgChange={handleBgChange}
           onTripUpdate={handleTripUpdate}
           isMobile={isMobileMode}
+          cards={cards}
         />
       )}
       {pdfToast && (

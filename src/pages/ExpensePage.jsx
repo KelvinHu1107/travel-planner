@@ -142,6 +142,7 @@ export default function ExpensePage() {
         day,
         category: formCategory,
         notes: formNotes.trim(),
+        included: true,
         createdBy: {
           uid: currentUser?.uid ?? '',
           displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || t('common.unknown'),
