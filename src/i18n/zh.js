@@ -126,6 +126,15 @@ const zh = {
   'create.error.dateOrder':  '返回日不能早於出發日',
   'create.error.failed':     '建立失敗，請稍後再試',
   'create.error.nameTooLong':'計畫名稱最多 50 個字',
+  'sample.attraction.title': '[範例] 地標廣場',
+  'sample.restaurant.title': '[範例] 當地特色餐廳',
+  'sample.accommodation.title': '[範例] 旅館/民宿',
+  'sample.accommodation.address': '住宿類型可以記錄入住地點和 Check-in 時間。',
+  'sample.transport.title': '[範例] 機場快線',
+  'sample.transport.from': '出發地',
+  'sample.transport.to':   '目的地',
+  'sample.note.title':     '[範例] 旅行筆記',
+  'sample.note.content':   '筆記類型可以記錄任何想法、提醒事項或旅行心得！點擊卡片可進入完整筆記頁面編輯。',
 
   // ── Join Trip Modal ──────────────────────────────────
   'join.title':              '加入旅遊計畫',
@@ -191,6 +200,7 @@ const zh = {
   'board.sidebar.todos':     '待辦清單',
   'board.sidebar.packing':   '打包清單',
   'board.sidebar.totalDays': '共 {{n}} 天',
+  'board.toast.leftTrip':    '已離開此旅遊計畫',
   'board.toast.tripDeleted': '此旅遊計畫已被其他成員刪除',
   'board.toast.kicked':      '你已被移出此旅遊計畫',
   'board.toast.accessLost':  '已失去此旅遊計畫的存取權限',

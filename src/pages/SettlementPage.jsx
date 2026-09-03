@@ -169,7 +169,7 @@ export default function SettlementPage() {
       <div style={{ maxWidth: 640, margin: '0 auto', padding: 'clamp(16px,4vw,28px) clamp(14px,4vw,20px) 40px' }}>
 
         {/* 統一幣別 + 全選 */}
-        <div style={{
+        {expenses.length > 0 && <div style={{
           ...cardStyle, marginBottom: 20,
           display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
         }}>
@@ -202,7 +202,7 @@ export default function SettlementPage() {
               color: 'var(--text-muted)', cursor: 'pointer',
             }}>{t('settlement.selectNone')}</button>
           </div>
-        </div>
+        </div>}
 
         {/* 開銷清單（含 checkbox） */}
         <div style={{ marginBottom: 28 }}>
