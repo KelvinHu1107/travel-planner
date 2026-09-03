@@ -100,7 +100,7 @@ export default function ExpensePage() {
     acc[e.currency] = (acc[e.currency] ?? 0) + Number(e.amount ?? 0); return acc
   }, {})
 
-  const sortedDays = [...new Set(expenses.map(e => e.day))].sort()
+  const sortedDays = [...new Set(expenses.map(e => e.day))].filter(d => d).sort()
   const byDay = sortedDays.map(day => ({
     day,
     items: expenses.filter(e => e.day === day),

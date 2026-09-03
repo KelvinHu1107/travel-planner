@@ -236,7 +236,7 @@ async function uploadImages(files, tripId) {
       : `${Date.now()}-${uid()}`
     const path = `trips/${tripId}/images/${prefix}_${file.name}`
     const fRef = storageRef(storage, path)
-    await Promise.race([uploadBytes(fRef, file), uploadTimeout(30000, 'Firebase Storage 上傳超時，請確認 Firebase Storage 已在 Console 中啟用')])
+    await Promise.race([uploadBytes(fRef, file), uploadTimeout(30000, 'Upload timed out – verify Firebase Storage is enabled in the Firebase Console')])
     return getDownloadURL(fRef)
   }))
   await addStorageUsedBytes(tripId, compressed.reduce((s, f) => s + f.size, 0))
