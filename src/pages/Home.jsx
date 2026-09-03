@@ -228,11 +228,11 @@ function CreateModal({ uid, onClose, onCreated }) {
       try {
         const d = form.startDate
         await Promise.all([
-          addCard(code, { type: 'attraction', title: '[範例] 地標廣場', day: d, startTime: '09:00', duration: 90, address: '台北 101，信義路五段 7 號', lat: 25.0339, lng: 121.5645 }),
-          addCard(code, { type: 'restaurant', title: '[範例] 當地特色餐廳', day: d, startTime: '12:00', duration: 60, address: '饒河街夜市，松山區', lat: 25.0507, lng: 121.5776 }),
-          addCard(code, { type: 'accommodation', title: '[範例] 旅館/民宿', day: d, startTime: '15:00', duration: 60, address: '住宿類型可以記錄入住地點和 Check-in 時間。', lat: null, lng: null }),
-          addCard(code, { type: 'transport', title: '[範例] 機場快線', day: d, startTime: '07:00', duration: 60, from: '出發地', to: '目的地' }),
-          addCard(code, { type: 'note', title: '[範例] 旅行筆記', day: d, startTime: '20:00', duration: 30, content: '筆記類型可以記錄任何想法、提醒事項或旅行心得！點擊卡片可進入完整筆記頁面編輯。' }),
+          addCard(code, { type: 'attraction', title: t('sample.attraction.title'), day: d, startTime: '09:00', duration: 90, address: '台北 101，信義路五段 7 號', lat: 25.0339, lng: 121.5645 }),
+          addCard(code, { type: 'restaurant', title: t('sample.restaurant.title'), day: d, startTime: '12:00', duration: 60, address: '饒河街夜市，松山區', lat: 25.0507, lng: 121.5776 }),
+          addCard(code, { type: 'accommodation', title: t('sample.accommodation.title'), day: d, startTime: '15:00', duration: 60, address: t('sample.accommodation.address'), lat: null, lng: null }),
+          addCard(code, { type: 'transport', title: t('sample.transport.title'), day: d, startTime: '07:00', duration: 60, from: t('sample.transport.from'), to: t('sample.transport.to') }),
+          addCard(code, { type: 'note', title: t('sample.note.title'), day: d, startTime: '20:00', duration: 30, content: t('sample.note.content') }),
         ])
       } catch (err) { console.warn('[seed cards]', err) }
       onCreated?.()
@@ -445,7 +445,6 @@ export default function Home() {
         displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
       }
       await deleteTrip(tripCode, currentUser?.uid, actor)
-      setTrips(ts => ts.filter(t => t.code !== tripCode))
     } catch (err) {
       console.error(err)
       // Bug #37：把 trip 名稱帶進錯誤訊息
@@ -462,7 +461,6 @@ export default function Home() {
         uid: currentUser?.uid,
         displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
       })
-      setTrips(ts => ts.filter(t => t.code !== tripCode))
     } catch (err) {
       console.error(err)
       setActionError(t('home.error.leave'))

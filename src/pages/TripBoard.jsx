@@ -64,7 +64,7 @@ function makeSeedCards(firstDay) {
 }
 
 // ── 設定 Modal ───────────────────────────────
-function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobile, cards = [] }) {
+function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobile, cards = [], onLeaveSuccess }) {
   const navigate = useNavigate()
   const { currentUser, signOut, changePassword, isEmailUser } = useAuth()
   const { restartTutorial } = useTutorial()
@@ -282,6 +282,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
         uid: currentUser?.uid,
         displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
       })
+      onLeaveSuccess?.()
       navigate('/', { replace: true })
     } catch (err) {
       console.error(err)
@@ -2435,6 +2436,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
           onTripUpdate={handleTripUpdate}
           isMobile={isMobileMode}
           cards={cards}
+          onLeaveSuccess={() => showToast(t('board.toast.leftTrip'), 'info')}
         />
       )}
       {pdfToast && (

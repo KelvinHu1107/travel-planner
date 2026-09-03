@@ -126,6 +126,15 @@ const en = {
   'create.error.dateOrder':  'Return date cannot be before departure date',
   'create.error.failed':     'Creation failed, please try again',
   'create.error.nameTooLong':'Trip name cannot exceed 50 characters',
+  'sample.attraction.title': '[Sample] Landmark Plaza',
+  'sample.restaurant.title': '[Sample] Local Specialty Restaurant',
+  'sample.accommodation.title': '[Sample] Hotel / B&B',
+  'sample.accommodation.address': 'Accommodation cards can record check-in location and time.',
+  'sample.transport.title': '[Sample] Airport Express',
+  'sample.transport.from': 'Origin',
+  'sample.transport.to':   'Destination',
+  'sample.note.title':     '[Sample] Travel Journal',
+  'sample.note.content':   'Note cards can record any thoughts, reminders, or travel impressions! Click a card to open the full note editor.',
 
   // ── Join Trip Modal ──────────────────────────────────
   'join.title':              'Join a Trip',
@@ -191,6 +200,7 @@ const en = {
   'board.sidebar.todos':     'Todo List',
   'board.sidebar.packing':   'Packing List',
   'board.sidebar.totalDays': '{{n}} day(s) total',
+  'board.toast.leftTrip':    'You have left this trip',
   'board.toast.tripDeleted': 'This trip has been deleted by another member',
   'board.toast.kicked':      'You have been removed from this trip',
   'board.toast.accessLost':  'You have lost access to this trip',

@@ -304,6 +304,7 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, exis
   const [pendingNearby, setPendingNearby]             = useState(null)
   const [editingTitle, setEditingTitle]               = useState(isEdit)
   const [overlapError, setOverlapError]               = useState('')
+  const [amountError, setAmountError]                 = useState('')
   const [uploadError, setUploadError]               = useState('')
   const fileInputRef       = useRef(null)
   const attachmentInputRef = useRef(null)
@@ -449,10 +450,11 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, exis
     if (category === 'expense') {
       const amt = Number(form.amount)
       if (!Number.isFinite(amt) || amt <= 0) {
-        setOverlapError(t('expense.error.invalidAmount'))
+        setAmountError(t('expense.error.invalidAmount'))
         return
       }
     }
+    setAmountError('')
 
     const day = editCard?.day ?? defaultDay
     if (!form.startTime) return
@@ -696,7 +698,7 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, exis
                   min="0"
                   step="any"
                   value={form.amount}
-                  onChange={e => set('amount', e.target.value)}
+                  onChange={e => { set('amount', e.target.value); setAmountError('') }}
                   style={{ minWidth: 0 }}
                 />
               </Field>
@@ -713,6 +715,11 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, exis
                 </select>
               </Field>
             </div>
+            {amountError && (
+              <div style={{ padding: '7px 11px', borderRadius: 9, background: 'rgba(220,38,38,0.08)', border: '1.5px solid rgba(220,38,38,0.30)', fontSize: 12, fontWeight: 900, color: '#DC2626' }}>
+                ⚠️ {amountError}
+              </div>
+            )}
             <Field label={t('addCard.field.expenseCategory')}>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {EXPENSE_CATEGORIES.map(cat => (
