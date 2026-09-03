@@ -22,7 +22,7 @@ export function getDaysInRange(startStr, endStr) {
 
 // 格式化顯示日期，例：10/2 (週四)。lang 為 'zh' 或 'en'
 export function formatDisplayDate(dateStr, lang = 'zh') {
-  const date = new Date(dateStr)
+  const date = new Date(dateStr + 'T00:00:00')
   const weekdays = lang === 'zh' ? WEEKDAYS_ZH : WEEKDAYS_EN
   const month = date.getMonth() + 1
   const day = date.getDate()

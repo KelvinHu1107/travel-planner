@@ -446,6 +446,14 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, exis
     e.preventDefault()
     if (!form.title.trim()) return
 
+    if (category === 'expense') {
+      const amt = Number(form.amount)
+      if (!Number.isFinite(amt) || amt <= 0) {
+        setOverlapError(t('expense.error.invalidAmount'))
+        return
+      }
+    }
+
     const day = editCard?.day ?? defaultDay
     if (!form.startTime) return
     const newStart = tToMin(form.startTime)

@@ -23,9 +23,9 @@ async function getTripMeta(tripId) {
 // 產生 6 碼易讀邀請碼（去掉 0/O/1/I 避免混淆）
 function generateTripCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  return Array.from({ length: 6 }, () =>
-    chars[Math.floor(Math.random() * chars.length)]
-  ).join('')
+  const arr = new Uint8Array(6)
+  crypto.getRandomValues(arr)
+  return Array.from(arr, b => chars[b % chars.length]).join('')
 }
 
 // ── 使用者 Profile ───────────────────────────
@@ -458,15 +458,15 @@ export async function deleteDemoTrip(tripId) {
 }
 
 // 取得多位成員的 Profile
-export async function getMemberProfiles(uids) {
+export async function getMemberProfiles(uids, unknownLabel = '?') {
   if (!uids?.length) return []
   return Promise.all(
     uids.map(async uid => {
       try {
         const snap = await getDoc(doc(db, 'users', uid))
-        return snap.exists() ? { uid, ...snap.data() } : { uid, displayName: '未知用戶', email: '' }
+        return snap.exists() ? { uid, ...snap.data() } : { uid, displayName: unknownLabel, email: '' }
       } catch {
-        return { uid, displayName: '未知用戶', email: '' }
+        return { uid, displayName: unknownLabel, email: '' }
       }
     })
   )
@@ -535,9 +535,13 @@ export async function addAttachedTodo(tripId, cardId, todo) {
   })
 }
 
-export async function removeAttachedTodo(tripId, cardId, todo) {
-  await updateDoc(doc(db, 'trips', tripId, 'cards', cardId), {
-    attachedTodos: arrayRemove(todo),
+export async function removeAttachedTodo(tripId, cardId, todoId) {
+  const ref = doc(db, 'trips', tripId, 'cards', cardId)
+  await runTransaction(db, async tx => {
+    const snap = await tx.get(ref)
+    if (!snap.exists()) return
+    const todos = (snap.data().attachedTodos ?? []).filter(t => t.id !== todoId)
+    tx.update(ref, { attachedTodos: todos })
   })
 }
 

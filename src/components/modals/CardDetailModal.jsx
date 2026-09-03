@@ -228,7 +228,7 @@ async function uploadImages(files, tripId) {
   const compressed = await Promise.all(files.map(f => compressImage(f, IMAGE_LIMIT_MB)))
   const totalNewMB = compressed.reduce((s, f) => s + f.size, 0) / (1024 * 1024)
   if (usedMB + totalNewMB > TRIP_LIMIT_MB)
-    throw new Error(`已超過旅遊計畫儲存上限 ${TRIP_LIMIT_MB}MB（目前使用 ${usedMB.toFixed(1)}MB）`)
+    throw new Error(`Trip storage limit exceeded: ${TRIP_LIMIT_MB}MB (currently ${usedMB.toFixed(1)}MB used)`)
   const urls = await Promise.all(compressed.map(async file => {
     // Bug #28：檔名前綴改用 UUID 避免同時上傳的碰撞
     const prefix = (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -397,7 +397,7 @@ function AddNoteForm({ tripId, onAdd, onCancel }) {
     try {
       const urls = await uploadImages(files, tripId)
       setDraft(d => ({ ...d, images: [...d.images, ...urls] }))
-    } catch (err) { setUploadErr('上傳失敗：' + err.message) }
+    } catch (err) { setUploadErr(t('card.detail.uploadError') + ': ' + err.message) }
     finally { setUploading(false); e.target.value = '' }
   }
 
@@ -523,7 +523,7 @@ function AttachedTodosSection({ card, tripId }) {
                 textDecoration: todo.checked ? 'line-through' : 'none',
                 textDecorationColor: 'rgba(158,112,64,0.50)',
               }}>{todo.text}</span>
-              <button onClick={() => removeAttachedTodo(tripId, card.id, todo)} style={{
+              <button onClick={() => removeAttachedTodo(tripId, card.id, todo.id)} style={{
                 width: 22, height: 22, borderRadius: 6, flexShrink: 0,
                 background: 'rgba(220,38,38,0.07)', border: '1px solid rgba(220,38,38,0.18)',
                 color: '#DC2626', cursor: 'pointer',
@@ -740,7 +740,7 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
     try {
       const urls = await uploadImages(files, tripId)
       await onUpdate?.(card.id, { images: arrayUnion(...urls) })
-    } catch (err) { setCardImgErr('上傳失敗：' + err.message) }
+    } catch (err) { setCardImgErr(t('card.detail.uploadError') + ': ' + err.message) }
     finally { setUploadingImg(false); e.target.value = '' }
   }
 
@@ -754,7 +754,7 @@ export default function CardDetailModal({ card, onClose, onDelete, onEdit, onUpd
       await onUpdate?.(card.id, { images: arrayRemove(url) })
     } catch (err) {
       console.error(err)
-      setCardImgErr('刪除圖片失敗：' + (err?.message || '請稍後再試'))
+      setCardImgErr(t('card.detail.deleteImgError') + ': ' + (err?.message || ''))
       return
     }
     // Bug #29：Storage 刪除完成後，遞減 quota（若可解析路徑與檔案大小）

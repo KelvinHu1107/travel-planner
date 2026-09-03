@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { subscribeToExpenses, getTrip, getMemberProfiles, updateExpenseIncluded } from '../services/firestore'
+import { subscribeToExpenses, getMemberProfiles, updateExpenseIncluded } from '../services/firestore'
+import { writeBatch, doc, onSnapshot } from 'firebase/firestore'
+import { db } from '../services/firebase'
 import { useLanguage } from '../i18n/LanguageContext'
 
 const CURRENCY_FLAG_MAP = {
@@ -101,26 +103,26 @@ export default function SettlementPage() {
   }, [tripId, navigate])
 
   useEffect(() => {
-    getTrip(tripId)
-      .then(trip => {
-        if (trip.members?.length) {
-          getMemberProfiles(trip.members).then(setMemberProfiles)
-        }
-      })
-      .catch(() => {})
+    const unsubTrip = onSnapshot(doc(db, 'trips', tripId), snap => {
+      if (!snap.exists()) return
+      const members = snap.data().members ?? []
+      if (members.length) getMemberProfiles(members).then(setMemberProfiles)
+    }, () => {})
+    return () => unsubTrip()
   }, [tripId])
 
   const isChecked = (e) => e.included !== false
   const selectedExpenses = expenses.filter(isChecked)
   const { users, total, avg, transactions } = calculateSettlement(selectedExpenses, currency, memberProfiles, t('settlement.unknown'))
 
-  const toggleAll = (val) => {
-    // 批次寫入 Firestore；本地不用 optimistic state，訂閱會自動更新
+  const toggleAll = async (val) => {
+    const batch = writeBatch(db)
     expenses.forEach(e => {
       if (isChecked(e) !== val) {
-        updateExpenseIncluded(tripId, e.id, val).catch(() => {})
+        batch.update(doc(db, 'trips', tripId, 'expenses', e.id), { included: val })
       }
     })
+    await batch.commit().catch(() => {})
   }
 
   const toggleOne = (e) => {
@@ -324,7 +326,7 @@ export default function SettlementPage() {
                             color: isOver ? '#059669' : '#DC2626' }}>
                             {isOver
                               ? t('settlement.overpaid',  { amount: `${fmt(diff, 1, lang)} ${currency}` })
-                              : t('settlement.underpaid', { amount: `${fmt(diff, 1, lang)} ${currency}` })}
+                              : t('settlement.underpaid', { amount: `${fmt(Math.abs(diff), 1, lang)} ${currency}` })}
                           </div>
                         </div>
                       </div>

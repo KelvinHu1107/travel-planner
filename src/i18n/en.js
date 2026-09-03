@@ -75,6 +75,16 @@ const en = {
   'auth.error.passwordMismatch.title': 'Passwords do not match',
   'auth.error.passwordMismatch.desc':  'The "Password" and "Confirm Password" fields do not match.',
   'auth.error.passwordMismatch.action':'Please re-enter both password fields to make them match',
+  'auth.error.userNotFound':           'No account found with this email',
+  'auth.error.wrongPassword':          'Incorrect password',
+  'auth.error.emailInUse':             'This email is already in use',
+  'auth.error.weakPassword':           'Password is too weak',
+  'auth.error.invalidEmail':           'Invalid email format',
+  'auth.error.tooManyRequests':        'Too many attempts, please try again later',
+  'auth.error.networkRequest':         'Network connection failed',
+  'auth.error.popupClosed':            'Sign-in window was closed',
+  'auth.error.operationNotAllowed':    'This sign-in method is not enabled',
+  'auth.error.default':                'Sign-in failed, please try again',
 
   // ── Home Page ────────────────────────────────────────
   'home.myTrips':            'My Trips',
@@ -463,6 +473,8 @@ const en = {
   'card.detail.duration.full': '{{hours}}h {{mins}}m total',
   'card.detail.duration.hOnly': '{{hours}} hour(s)',
   'card.detail.duration.mOnly': '{{mins}} min',
+  'card.detail.uploadError':   'Upload failed',
+  'card.detail.deleteImgError': 'Failed to delete image',
 
   // ── ExpensePage ──────────────────────────────────────
   'expense.title':           'Trip Expenses',
@@ -619,7 +631,7 @@ const en = {
   'error.app.loading':       'Loading…',
   'error.checkNetwork':      'Please check your network connection',
   'error.tripNotFound':      'Trip not found. Please check the invite code.',
-  'error.storageLimitExceeded': 'Trip storage limit exceeded (50MB)',
+  'error.storageLimitExceeded': 'Trip storage limit exceeded (100MB)',
   'error.cardNotFound':      'Card not found',
   'error.joinFailed':        'Failed to join trip. Please try again.',
 }
