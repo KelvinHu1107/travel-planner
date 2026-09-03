@@ -106,7 +106,7 @@ export default function SettlementPage() {
     const unsubTrip = onSnapshot(doc(db, 'trips', tripId), snap => {
       if (!snap.exists()) return
       const members = snap.data().members ?? []
-      if (members.length) getMemberProfiles(members).then(setMemberProfiles)
+      if (members.length) getMemberProfiles(members, t('settlement.unknown')).then(setMemberProfiles)
     }, () => {})
     return () => unsubTrip()
   }, [tripId])

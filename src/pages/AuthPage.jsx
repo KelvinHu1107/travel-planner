@@ -438,7 +438,7 @@ export default function AuthPage() {
     try {
       if (mode === 'forgot') {
         await sendReset(email)
-        setSuccess('重設密碼連結已發送！請查看 email 信箱（記得看垃圾信件夾）')
+        setSuccess(t('auth.forgot.sent'))
         return
       }
       if (mode === 'register') {
@@ -479,7 +479,8 @@ export default function AuthPage() {
       'auth/too-many-requests':     'auth.error.tooManyRequests',
       'auth/network-request-failed':'auth.error.networkRequest',
       'auth/popup-closed-by-user':  'auth.error.popupClosed',
-      'auth/operation-not-allowed': 'auth.error.operationNotAllowed',
+      'auth/operation-not-allowed':  'auth.error.operationNotAllowed',
+      'auth/invalid-credential':     'auth.error.wrongPassword',
     }
     return keyMap[code] ? t(keyMap[code]) : null
   }

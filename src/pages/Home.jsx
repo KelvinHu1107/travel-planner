@@ -95,6 +95,10 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave, isMobileMode 
 
         {/* 下拉選單 */}
         {menuOpen && !confirmDel && !confirmLeave && (
+          <>
+          <div onClick={(e) => { e.stopPropagation(); setMenuOpen(false) }} style={{
+            position: 'fixed', inset: 0, zIndex: 49,
+          }} />
           <div onClick={e => e.stopPropagation()} style={{
             position: 'absolute', top: 40, right: 8, zIndex: 50,
             background: 'rgba(255,252,243,0.98)',
@@ -118,6 +122,7 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave, isMobileMode 
               </button>
             )}
           </div>
+          </>
         )}
 
         <div style={{ position: 'absolute', bottom: 10, left: 14, right: 14 }}>
