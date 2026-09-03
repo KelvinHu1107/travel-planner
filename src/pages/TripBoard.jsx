@@ -1237,7 +1237,7 @@ function ListView({ cards, trip, onCardClick, onDeleteCard }) {
             {dayCards.length === 0 ? (
               <div style={{ padding: '14px 16px', borderRadius: 14, border: '1.5px dashed rgba(165,125,65,0.20)',
                 fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textAlign: 'center' }}>
-                這天還沒有行程
+                {t('board.noCards')}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1264,7 +1264,7 @@ function ListView({ cards, trip, onCardClick, onDeleteCard }) {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 900, color: isPending ? '#DC2626' : cfg.color,
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {isPending ? `刪除「${card.title}」？` : card.title}
+                          {isPending ? t('board.deleteCard', { title: card.title }) : card.title}
                         </div>
                         {!isPending && (
                           <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginTop: 2,
@@ -1282,10 +1282,10 @@ function ListView({ cards, trip, onCardClick, onDeleteCard }) {
                           <button onClick={() => setPendingDeleteId(null)}
                             style={{ padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 900,
                               border: '1.5px solid rgba(165,125,65,0.25)', background: 'var(--bg-elevated)',
-                              color: 'var(--text-muted)', cursor: 'pointer' }}>取消</button>
+                              color: 'var(--text-muted)', cursor: 'pointer' }}>{t('common.cancel')}</button>
                           <button onClick={() => { onDeleteCard(card.id); setPendingDeleteId(null) }}
                             style={{ padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 900,
-                              border: 'none', background: '#EF4444', color: '#fff', cursor: 'pointer' }}>刪除</button>
+                              border: 'none', background: '#EF4444', color: '#fff', cursor: 'pointer' }}>{t('common.delete')}</button>
                         </div>
                       ) : (
                         <button
@@ -1311,6 +1311,7 @@ function ListView({ cards, trip, onCardClick, onDeleteCard }) {
 
 // ── 手機版：頂部欄 ──────────────────────────
 function MobileTopBar({ trip, tripId, navigate, onSettings, toggleMode, isMobileMode }) {
+  const { t } = useLanguage()
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -1332,7 +1333,7 @@ function MobileTopBar({ trip, tripId, navigate, onSettings, toggleMode, isMobile
         <div style={{ minWidth: 0 }}>
           <div title={trip?.name} style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-primary)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {trip?.name || '載入中…'}
+            {trip?.name || t('common.loading')}
           </div>
           {trip && (
             <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)' }}>
@@ -1349,7 +1350,7 @@ function MobileTopBar({ trip, tripId, navigate, onSettings, toggleMode, isMobile
           background: 'var(--bg-elevated)',
           color: 'var(--text-muted)', fontSize: 10, fontWeight: 900, cursor: 'pointer',
           display: 'flex', alignItems: 'center', gap: 4,
-        }}>{isMobileMode ? <Monitor size={12} /> : <Smartphone size={12} />} {isMobileMode ? '電腦版' : '手機版'}</button>
+        }}>{isMobileMode ? <Monitor size={12} /> : <Smartphone size={12} />} {isMobileMode ? t('board.pcMode') : t('board.mobileMode')}</button>
       </div>
     </div>
   )
@@ -1360,7 +1361,7 @@ const WEEKDAYS_SHORT_ZH = ['日','一','二','三','四','五','六']
 const WEEKDAYS_SHORT_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
 function DayTabBar({ trip, mobileDay, onSelect, searchVisible, onSearchToggle }) {
-  const { lang } = useLanguage()
+  const { t, lang } = useLanguage()
   const WEEKDAYS_SHORT = lang === 'zh' ? WEEKDAYS_SHORT_ZH : WEEKDAYS_SHORT_EN
   const days    = trip ? getDaysInRange(trip.startDate, trip.endDate) : []
   const todayStr = getLocalDateStr()
@@ -1385,7 +1386,7 @@ function DayTabBar({ trip, mobileDay, onSelect, searchVisible, onSearchToggle })
         padding: '0 4px',
       }}>
         {/* 總覽 tab */}
-        {[{ key: null, label: '總覽', isToday: false },
+        {[{ key: null, label: t('board.overview.tab'), isToday: false },
           ...days.map((day, i) => {
             const d = new Date(day + 'T00:00:00')
             return { key: day, label: `D${i+1}\n${d.getMonth()+1}/${d.getDate()} ${WEEKDAYS_SHORT[d.getDay()]}`, isToday: day === todayStr }
@@ -1442,11 +1443,12 @@ function DayTabBar({ trip, mobileDay, onSelect, searchVisible, onSearchToggle })
 
 // ── 手機版：底部導覽欄 ──────────────────────
 function MobileBottomBar({ tripId, navigate, onExpense, onSettings, mobileDay }) {
+  const { t } = useLanguage()
   const items = [
-    { IconComp: CheckSquare, label: '待辦', tutorialId: 'todo-btn', action: () => navigate(`/trip/${tripId}/todos`, { state: { returnDay: mobileDay } }) },
-    { IconComp: Package,     label: '打包', tutorialId: 'packing-btn', action: () => navigate(`/trip/${tripId}/packing`, { state: { returnDay: mobileDay } }) },
-    { IconComp: Wallet,      label: '開銷', tutorialId: 'expense-btn', action: onExpense },
-    { IconComp: Settings2,   label: '設定', tutorialId: 'settings-btn', action: onSettings },
+    { IconComp: CheckSquare, label: t('board.fab.todo'),     tutorialId: 'todo-btn',      action: () => navigate(`/trip/${tripId}/todos`, { state: { returnDay: mobileDay } }) },
+    { IconComp: Package,     label: t('board.fab.packing'),  tutorialId: 'packing-btn',   action: () => navigate(`/trip/${tripId}/packing`, { state: { returnDay: mobileDay } }) },
+    { IconComp: Wallet,      label: t('board.fab.expense'),  tutorialId: 'expense-btn',   action: onExpense },
+    { IconComp: Settings2,   label: t('board.settings'),     tutorialId: 'settings-btn',  action: onSettings },
   ]
   return (
     <div style={{
@@ -1503,15 +1505,15 @@ function wxEmoji(code) {
   if (code <= 82) return '🌦️'
   return '⛈️'
 }
-function wxDesc(code) {
+function wxDesc(code, t) {
   if (code == null) return ''
-  if (code === 0) return '晴天'
-  if (code <= 3) return '多雲'
-  if (code <= 48) return '有霧'
-  if (code <= 67) return '有雨'
-  if (code <= 77) return '下雪'
-  if (code <= 82) return '陣雨'
-  return '雷雨'
+  if (code === 0) return t('weather.sunny')
+  if (code <= 3) return t('weather.cloudy')
+  if (code <= 48) return t('weather.foggy')
+  if (code <= 67) return t('weather.rainy')
+  if (code <= 77) return t('weather.snowy')
+  if (code <= 82) return t('weather.drizzle')
+  return t('weather.thunderstorm')
 }
 
 function DayMapView({ trip, cards, mapHeight = 230, day }) {
@@ -1746,7 +1748,7 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
                 <span>{wxEmoji(weather.weather_code)}</span>
                 <span>{Math.round(weather.temperature_2m)}°C</span>
                 <span style={{ color: 'var(--text-muted)', fontWeight: 700, fontSize: 11 }}>
-                  {wxDesc(weather.weather_code)}
+                  {wxDesc(weather.weather_code, t)}
                 </span>
                 {weather.wind_speed_10m != null && (
                   <span style={{ color: 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>
@@ -1919,7 +1921,7 @@ function MobileOverview({ trip, cards, onCardClick, onDeleteCard, onDaySelect, s
               <span style={{ fontSize: 14, fontWeight: 900,
                 color: isToday ? 'var(--accent)' : 'var(--text-primary)' }}>{label}</span>
               {isToday && <span style={{ fontSize: 10, fontWeight: 900, color: '#fff',
-                background: 'var(--accent)', borderRadius: 6, padding: '1px 6px' }}>今天</span>}
+                background: 'var(--accent)', borderRadius: 6, padding: '1px 6px' }}>{t('board.today')}</span>}
               <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)' }}>
                 {dayCards.length > 0 ? t('board.overview.items', { count: dayCards.length }) : t('board.overview.view')}
               </span>
@@ -1931,7 +1933,7 @@ function MobileOverview({ trip, cards, onCardClick, onDeleteCard, onDaySelect, s
                 <div style={{ padding: '10px 14px', borderRadius: 10,
                   border: '1.5px dashed rgba(165,125,65,0.20)',
                   fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textAlign: 'center' }}>
-                  這天還沒有行程
+                  {t('board.noCards')}
                 </div>
               )
             ) : (
@@ -1960,7 +1962,7 @@ function MobileOverview({ trip, cards, onCardClick, onDeleteCard, onDaySelect, s
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 900, color: isPending ? '#DC2626' : cfg.color,
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {isPending ? `刪除？` : card.title}
+                          {isPending ? t('board.deleteCard', { title: card.title }) : card.title}
                         </div>
                         {!isPending && card.type === 'transport' && card.from && card.to && (
                           <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)',
@@ -1974,10 +1976,10 @@ function MobileOverview({ trip, cards, onCardClick, onDeleteCard, onDaySelect, s
                           <button onClick={() => setPendingDeleteId(null)}
                             style={{ padding: '5px 9px', borderRadius: 8, fontSize: 12, fontWeight: 900,
                               border: '1.5px solid rgba(165,125,65,0.25)', background: 'var(--bg-elevated)',
-                              color: 'var(--text-muted)', cursor: 'pointer', minHeight: 34 }}>取消</button>
+                              color: 'var(--text-muted)', cursor: 'pointer', minHeight: 34 }}>{t('common.cancel')}</button>
                           <button onClick={() => { onDeleteCard(card.id); setPendingDeleteId(null) }}
                             style={{ padding: '5px 9px', borderRadius: 8, fontSize: 12, fontWeight: 900,
-                              border: 'none', background: '#EF4444', color: '#fff', cursor: 'pointer', minHeight: 34 }}>刪除</button>
+                              border: 'none', background: '#EF4444', color: '#fff', cursor: 'pointer', minHeight: 34 }}>{t('common.delete')}</button>
                         </div>
                       ) : (
                         <button
@@ -2065,7 +2067,7 @@ export default function TripBoard() {
         if (cancelled) return
         // 若 trip 有 members 欄位，檢查目前用戶是否是成員
         if (data.members?.length && currentUser && !data.members.includes(currentUser.uid)) {
-          setError('你不是此旅遊計畫的成員')
+          setError(t('board.error.notMember'))
           setLoading(false)
           return
         }
@@ -2086,7 +2088,7 @@ export default function TripBoard() {
           setCards(liveCards)
         }, (err) => {
           if (err.code === 'permission-denied' || err.code === 'not-found') {
-            setError('此旅遊計畫已被刪除或你已失去存取權限')
+            setError(t('board.error.deleted'))
             setTimeout(() => navigate('/'), 3000)
           }
         })
@@ -2097,7 +2099,7 @@ export default function TripBoard() {
         unsubTrip = onSnapshot(doc(db, 'trips', tripId), (snap) => {
           if (!snap.exists()) {
             // Bug #10
-            showToast('此旅遊計畫已被其他成員刪除', 'warning')
+            showToast(t('board.toast.tripDeleted'), 'warning')
             setTimeout(() => navigate('/', { replace: true }), 1500)
             return
           }
@@ -2107,12 +2109,12 @@ export default function TripBoard() {
           if (!currentUser?.uid) return
           if (Array.isArray(latest.members) && !latest.members.includes(currentUser.uid)) {
             // Bug #12
-            showToast('你已被移出此旅遊計畫', 'warning')
+            showToast(t('board.toast.kicked'), 'warning')
             setTimeout(() => navigate('/', { replace: true }), 1500)
           }
         }, (err) => {
           if (err.code === 'permission-denied' || err.code === 'not-found') {
-            showToast('已失去此旅遊計畫的存取權限', 'warning')
+            showToast(t('board.toast.accessLost'), 'warning')
             setTimeout(() => navigate('/', { replace: true }), 1500)
           }
         })
@@ -2574,8 +2576,8 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
                     gap: 14, pointerEvents: 'none',
                   }}>
                     <CalendarDays size={48} color="var(--text-muted)" />
-                    <p style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-secondary)' }}>這天還沒有行程</p>
-                    <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>長按空白處可新增，長按卡片可拖曳</p>
+                    <p style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-secondary)' }}>{t('board.noCards')}</p>
+                    <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>{t('board.longPressHint')}</p>
                   </div>
                 )}
               </div>
