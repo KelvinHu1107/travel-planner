@@ -203,8 +203,8 @@ export default function NotificationBell({ isMobile = false }) {
               </div>
             ) : notifications.length === 0 ? (
               <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, opacity: 0.4 }}>
-                  <Bell size={32} color="var(--text-muted)" />
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+                  <img src="https://loosedrawing.com/assets/media/illustrations/png/933.png" alt="" style={{ width: 64, objectFit: 'contain' }} />
                 </div>
                 <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>{t('notification.empty')}</p>
               </div>

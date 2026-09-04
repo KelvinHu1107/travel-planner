@@ -19,8 +19,8 @@ import {
   X, Plus, Settings2, Trash2,
   Map, Wallet, FileText, Search, ClipboardList, Package,
   CheckSquare, MapPin, CalendarDays, Clock, List,
-  Monitor, Smartphone, Pencil, Plane,
-  Key, Users, User, Info, AlertTriangle, Frown,
+  Monitor, Smartphone, Pencil,
+  Key, Users, User, Info, AlertTriangle,
 } from 'lucide-react'
 import { CopyLinkButton, FullscreenButton } from '../components/ui/TopBarActions'
 import ThemeSwitcher from '../components/ui/ThemeSwitcher'
@@ -2475,14 +2475,14 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'center' }}><Plane size={60} color="var(--text-muted)" /></div>
+      <div style={{ display: 'flex', justifyContent: 'center' }}><img src="https://loosedrawing.com/assets/media/illustrations/png/933.png" alt="" style={{ width: 110, objectFit: 'contain' }} /></div>
       <p style={{ fontSize: 17, fontWeight: 900, color: 'var(--text-secondary)' }}>{t('board.loading')}</p>
     </div>
   )
 
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 24, padding: 32 }}>
-      <div style={{ display: 'flex', justifyContent: 'center' }}><Frown size={60} color="var(--text-muted)" /></div>
+      <div style={{ display: 'flex', justifyContent: 'center' }}><img src="https://loosedrawing.com/assets/media/illustrations/png/1959.png" alt="" style={{ width: 110, objectFit: 'contain' }} /></div>
       <p style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>{t('board.error.loadFailed')}</p>
       <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-secondary)' }}>{error}</p>
       <button className="btn-game btn-primary" style={{ padding: '14px 36px' }} onClick={() => navigate('/')}>{t('board.error.homeReturn')}</button>
@@ -2674,7 +2674,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
                     backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
                     gap: 14, pointerEvents: 'none',
                   }}>
-                    <CalendarDays size={48} color="var(--text-muted)" />
+                    <img src="https://loosedrawing.com/assets/media/illustrations/png/1156.png" alt="" style={{ width: 80, objectFit: 'contain' }} />
                     <p style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-secondary)' }}>{t('board.noCards')}</p>
                     <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>{t('board.longPressHint')}</p>
                   </div>
@@ -2846,7 +2846,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
                     backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
                     gap: 14,
                   }}>
-                    <Map size={52} color="var(--text-muted)" />
+                    <img src="https://loosedrawing.com/assets/media/illustrations/png/1156.png" alt="" style={{ width: 86, objectFit: 'contain' }} />
                     <p style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-secondary)' }}>{t('board.emptyTitle')}</p>
                     <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', textAlign: 'center' }}>
                       {t('board.emptyHint')}
@@ -2866,7 +2866,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
                     <div style={{
                       flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14,
                     }}>
-                      <Map size={52} color="var(--text-muted)" />
+                      <img src="https://loosedrawing.com/assets/media/illustrations/png/1156.png" alt="" style={{ width: 86, objectFit: 'contain' }} />
                       <p style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-secondary)' }}>{t('board.emptyTitle')}</p>
                       <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', textAlign: 'center' }}>
                         {t('board.emptyHint')}

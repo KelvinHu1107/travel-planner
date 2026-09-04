@@ -9,7 +9,7 @@ import { createTrip, joinTrip, getUserTrips, deleteTrip, leaveTrip, addCard, cle
 import { getTripDuration, getLocalDateStr } from '../utils/dateUtils'
 import { useTutorial } from '../tutorial/TutorialContext'
 import { useLanguage } from '../i18n/LanguageContext'
-import ThemeSwitcher from '../components/ui/ThemeSwitcher'
+
 import CalendarPicker from '../components/ui/CalendarPicker'
 
 // 判斷 trip 是否超過 30 天未瀏覽（Bug #13）
@@ -611,7 +611,6 @@ export default function Home() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobileMode ? 8 : 12 }}>
-          <ThemeSwitcher />
           <ModeToggleBtn />
           {isMobileMode ? (
             <>
