@@ -23,13 +23,13 @@ function TimeColumn() {
     <div style={{
       position: 'sticky', left: 0, zIndex: 20,
       width: TIME_COL_W, flexShrink: 0,
-      background: '#F2E7D0',
+      background: 'var(--board-col-bg)',
       borderRight: '2px solid rgba(165,125,65,0.22)',
     }}>
       <div style={{
         position: 'sticky', top: 0, zIndex: 30,
         height: HEADER_H,
-        background: '#F2E7D0',
+        background: 'var(--board-col-bg)',
         borderBottom: '2px solid rgba(165,125,65,0.25)',
       }} />
 
@@ -75,7 +75,7 @@ function DayColumn({ day, dayIndex, isToday, currentTimePx, onSlotClick, cards, 
         height: HEADER_H,
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center', gap: 4,
-        background: isToday ? 'rgba(180,100,20,0.11)' : '#F2E7D0',
+        background: isToday ? 'rgba(180,100,20,0.11)' : 'var(--board-col-bg)',
         backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
         borderBottom: `3px solid ${isToday ? 'rgba(180,100,20,0.50)' : 'rgba(165,125,65,0.20)'}`,
       }}>

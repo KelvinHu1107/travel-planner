@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import * as Sentry from '@sentry/react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ViewModeProvider } from './contexts/ViewModeContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import { TutorialProvider } from './tutorial/TutorialContext'
 import { LanguageProvider } from './i18n/LanguageContext'
 import { NotificationProvider } from './hooks/useNotifications'
@@ -58,8 +59,8 @@ function LiffInitializer({ children }) {
 
   if (!ready) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-        <div style={{ fontSize: 52 }}>✈️</div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20 }}>
+        <img src="https://loosedrawing.com/assets/media/illustrations/png/933.png" alt="" style={{ width: 120, height: 120, objectFit: 'contain', opacity: 0.85 }} />
         <p style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-muted)' }}>LINE 登入中…</p>
       </div>
     )
@@ -98,8 +99,8 @@ function ProtectedRoute({ children }) {
   const { currentUser, authLoading } = useAuth()
   const location = useLocation()
   if (authLoading) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-      <div style={{ fontSize: 52 }}>✈️</div>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20 }}>
+      <img src="https://loosedrawing.com/assets/media/illustrations/png/479.png" alt="" style={{ width: 120, height: 120, objectFit: 'contain', opacity: 0.85 }} />
       <p style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-muted)' }}>載入中…</p>
     </div>
   )
@@ -140,7 +141,7 @@ export default function App() {
     <LiffInitializer>
     <Sentry.ErrorBoundary fallback={({ error }) => (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 24 }}>
-        <div style={{ fontSize: 52 }}>⚠️</div>
+        <img src="https://loosedrawing.com/assets/media/illustrations/png/1959.png" alt="" style={{ width: 160, height: 160, objectFit: 'contain', opacity: 0.85 }} />
         <p style={{ fontSize: 16, fontWeight: 900, color: '#92400E' }}>發生錯誤，請重新整理頁面</p>
         <div style={{ fontSize: 12, color: '#92400E', background: 'rgba(146,64,14,0.08)', border: '1px solid rgba(146,64,14,0.2)', borderRadius: 8, padding: '8px 12px', maxWidth: 320, wordBreak: 'break-all', textAlign: 'left' }}>
           {String(error)}
@@ -151,18 +152,20 @@ export default function App() {
       </div>
     )}>
       <BrowserRouter>
-        <LanguageProvider>
-          <ViewModeProvider>
-            <AuthProvider>
-              <NotificationsScope>
-                <TutorialProvider>
-                  <AppRoutes />
-                  <TutorialOverlay />
-                </TutorialProvider>
-              </NotificationsScope>
-            </AuthProvider>
-          </ViewModeProvider>
-        </LanguageProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+            <ViewModeProvider>
+              <AuthProvider>
+                <NotificationsScope>
+                  <TutorialProvider>
+                    <AppRoutes />
+                    <TutorialOverlay />
+                  </TutorialProvider>
+                </NotificationsScope>
+              </AuthProvider>
+            </ViewModeProvider>
+          </LanguageProvider>
+        </ThemeProvider>
       </BrowserRouter>
     </Sentry.ErrorBoundary>
     </LiffInitializer>

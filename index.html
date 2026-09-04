@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-TW">
+<html lang="zh-TW" data-theme="handdrawn">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -8,10 +8,19 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>TripTogether</title>
-    <!-- M PLUS Rounded 1c: 圓潤可愛的繁中字型 (POP 海報感) -->
+    <!-- 防止主題 FOUC：在 JS 框架載入前立即同步 data-theme -->
+    <script>
+      (function(){
+        var t = localStorage.getItem('app-theme') || 'handdrawn';
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
+    <!-- M PLUS Rounded 1c: 圓潤可愛的繁中字型（可愛風） -->
+    <!-- Klee One: 日系手寫文青字型，CJK+Latin（手繪風主字型） -->
+    <!-- Ma Shan Zheng: 中文毛筆手寫字體（Klee One 未覆蓋字元時的後備） -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800;900&family=Ma+Shan+Zheng&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=M+PLUS+Rounded+1c:wght@400;700;800;900&family=Ma+Shan+Zheng&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>
