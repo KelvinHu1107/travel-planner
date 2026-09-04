@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTutorial } from './TutorialContext'
-import { TUTORIAL_STEPS } from './steps'
+import { useLanguage } from '../i18n/LanguageContext'
 
 const PAD        = 10   // spotlight padding around element
 const GAP        = 10   // gap between spotlight edge and bubble
@@ -93,7 +93,8 @@ function RedArrow({ left, top, transform, direction = 'down' }) {
 }
 
 export default function TutorialOverlay() {
-  const { tutorialActive, tutorialStep, currentStepData, totalSteps, nextStep, skipTutorial } = useTutorial()
+  const { tutorialActive, tutorialStep, currentStepData, totalSteps, steps, nextStep, skipTutorial } = useTutorial()
+  const { t } = useLanguage()
 
   const [rect, setRect]       = useState(null)
   const [visible, setVisible] = useState(false)
@@ -341,11 +342,11 @@ export default function TutorialOverlay() {
             background: 'rgba(220,38,38,0.08)', borderRadius: 8,
             padding: '8px 10px', textAlign: 'center', lineHeight: 1.4,
           }}>
-            {currentStepData.actionHint ?? '長按行程拖曳到下方空白處'}
+            {currentStepData.actionHint ?? t('tutorial.dragHint')}
           </div>
 
           <div style={{ display: 'flex', gap: 3, justifyContent: 'center', margin: '10px 0 8px' }}>
-            {TUTORIAL_STEPS.map((_, i) => (
+            {steps.map((_, i) => (
               <div key={i} style={{
                 height: 4, borderRadius: 2,
                 width: i === tutorialStep ? 16 : 4,
@@ -361,7 +362,7 @@ export default function TutorialOverlay() {
             background: 'transparent', color: '#92400E',
             fontSize: 12, fontWeight: 700, cursor: 'pointer',
           }}>
-            跳過教學
+            {t('tutorial.skip')}
           </button>
         </div>
       </div>
@@ -509,12 +510,12 @@ export default function TutorialOverlay() {
             background: 'rgba(220,38,38,0.08)', borderRadius: 8,
             padding: '8px 10px', textAlign: 'center', lineHeight: 1.4,
           }}>
-            {currentStepData.actionHint ?? '👆 點擊高亮區域繼續'}
+            {currentStepData.actionHint ?? t('tutorial.clickHint')}
           </div>
         )}
 
         <div style={{ display: 'flex', gap: 3, justifyContent: 'center', margin: '10px 0 8px' }}>
-          {TUTORIAL_STEPS.map((_, i) => (
+          {steps.map((_, i) => (
             <div key={i} style={{
               height: 4, borderRadius: 2,
               width: i === tutorialStep ? 16 : 4,
@@ -532,7 +533,7 @@ export default function TutorialOverlay() {
               boxShadow: '0 3px 0 #7C2D12',
               color: '#fff', fontSize: 13, fontWeight: 900, cursor: 'pointer',
             }}>
-              🎉 開始規劃旅行！
+              {t('tutorial.startPlanning')}
             </button>
           ) : isInteractive ? (
             <button onClick={skipTutorial} style={{
@@ -541,7 +542,7 @@ export default function TutorialOverlay() {
               background: 'transparent', color: '#92400E',
               fontSize: 12, fontWeight: 700, cursor: 'pointer',
             }}>
-              跳過教學
+              {t('tutorial.skip')}
             </button>
           ) : (
             <>
@@ -551,7 +552,7 @@ export default function TutorialOverlay() {
                 background: 'transparent', color: '#92400E',
                 fontSize: 12, fontWeight: 700, cursor: 'pointer',
               }}>
-                跳過教學
+                {t('tutorial.skip')}
               </button>
               <button onClick={nextStep} style={{
                 flex: 1, padding: '10px 8px', borderRadius: 10, border: 'none',
@@ -559,7 +560,7 @@ export default function TutorialOverlay() {
                 boxShadow: '0 3px 0 #7C2D12',
                 color: '#fff', fontSize: 13, fontWeight: 900, cursor: 'pointer',
               }}>
-                繼續 →
+                {t('tutorial.next')}
               </button>
             </>
           )}

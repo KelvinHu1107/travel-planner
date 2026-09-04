@@ -21,7 +21,8 @@ service cloud.firestore {
     }
 
     // Trips
-    // Bug #1: 讀取 → 只有 members 可以讀（避免任何登入使用者靠 tripId 掃描資料）
+    // Bug #1: 讀取現有文件 → 只有 members 可讀（避免任何登入使用者靠 tripId 掃描資料）
+    //         resource == null 代表文件不存在，允許讀取供 createTrip 碰撞檢查使用
     // Bug #2: 更新 → 允許 members 更新，但非 owner 不可修改 ownerId
     // Bug #4: joinTrip → 允許使用者將自己 uid 加入 members（arrayUnion 樣式）
     match /trips/{tripId} {
@@ -105,7 +106,7 @@ service cloud.firestore {
       // Bug #1：建立通知必須符合下列條件（防止 spam）
       // - actorUid 必須是目前登入者
       // - createdAt 為 server timestamp（request.time）
-      // - expiresAt 最多 7 天後（Bug #1：允許 ~120 秒 client/server 時鐘偏移）
+      // - expiresAt 最多 7 天後（允許 10 分鐘 client/server 時鐘偏移；client 端另外預扣 5 分鐘，合計容忍 ±5 分鐘偏移）
       // - read 必須為 false
       // - Bug #6：actor 與收件人皆須為此 tripId 的成員（防止任意登入者對他人 spam）
       // - Bug #6：type 只能是預期的 enum；tripName / cardTitle 長度上限 200
@@ -114,7 +115,7 @@ service cloud.firestore {
         && request.resource.data.userId.size() > 0
         && request.resource.data.actorUid == request.auth.uid
         && request.resource.data.createdAt == request.time
-        && request.resource.data.expiresAt <= request.time + duration.value(604920, 's')
+        && request.resource.data.expiresAt <= request.time + duration.value(605400, 's')
         && request.resource.data.read == false
         && request.resource.data.type in ['card_added', 'card_updated', 'card_deleted', 'member_joined', 'trip_deleted', 'trip_auto_delete_warning', 'member_left']
         && request.auth.uid in get(/databases/$(database)/documents/trips/$(request.resource.data.tripId)).data.members

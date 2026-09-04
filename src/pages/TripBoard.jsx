@@ -44,27 +44,21 @@ import { useViewMode } from '../contexts/ViewModeContext'
 import { CURRENT_VERSION, CHANGELOG } from '../constants/version'
 
 // ── 範例種子卡片（首次進入時寫入 Firestore）────
-function makeSeedCards(firstDay) {
+function makeSeedCards(firstDay, t) {
   return [
-    // 龍山寺在 09:00 → 成為拖曳教學的第一張卡片（firstCardTutorialId）
     { type: 'attraction', day: firstDay, startTime: '09:00', duration: 30,
-      title: '龍山寺', address: '台北市萬華區廣州街211號',
-      lat: 25.0373, lng: 121.4999 },
-    // 09:30–10:30 留空，供拖曳教學使用
+      title: t('sample.attraction.title'), address: t('sample.attraction.address'), lat: null, lng: null },
     { type: 'transport', day: firstDay, startTime: '10:30', duration: 60,
-      title: '機場快線 → 台北車站', from: '桃園國際機場', to: '台北車站', mode: 'transit',
-      address: '台北市中正區北平西路3號', lat: 25.0478, lng: 121.5170 },
+      title: t('sample.transport.title'), from: t('sample.transport.from'), to: t('sample.transport.to'), mode: 'transit' },
     { type: 'restaurant', day: firstDay, startTime: '12:30', duration: 75,
-      title: '鼎泰豐（信義店）', address: '台北市信義區市府路45號B1',
-      lat: 25.0406, lng: 121.5660 },
+      title: t('sample.restaurant.title'), address: t('sample.restaurant.address'), lat: null, lng: null },
     { type: 'attraction', day: firstDay, startTime: '14:30', duration: 120,
-      title: '台北101 觀景台', address: '台北市信義區信義路五段7號',
-      lat: 25.0339, lng: 121.5645 },
+      title: t('sample.accommodation.title'), address: t('sample.accommodation.address'), lat: null, lng: null },
   ]
 }
 
 // ── 設定 Modal ───────────────────────────────
-function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobile, cards = [], onLeaveSuccess }) {
+function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobile, cards = [] }) {
   const navigate = useNavigate()
   const { currentUser, signOut, changePassword, isEmailUser } = useAuth()
   const { restartTutorial } = useTutorial()
@@ -282,8 +276,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
         uid: currentUser?.uid,
         displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
       })
-      onLeaveSuccess?.()
-      navigate('/', { replace: true })
+      navigate('/', { replace: true, state: { toast: 'leftTrip' } })
     } catch (err) {
       console.error(err)
       setEditError(t('settings.leaveTripError', { message: err?.message || t('common.error') }))
@@ -385,9 +378,14 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>{t('settings.trip.end')}</label>
-                    <input className="game-input" type="date" value={editForm.endDate}
-                      max={undefined}
-                      onChange={e => handleDateChange('endDate', e.target.value)} />
+                    {(() => {
+                      const endMax = editForm.startDate ? (() => { const d = new Date(editForm.startDate + 'T00:00:00'); d.setDate(d.getDate() + 59); return d.toISOString().split('T')[0] })() : undefined
+                      return (
+                        <input className="game-input" type="date" value={editForm.endDate}
+                          max={endMax}
+                          onChange={e => handleDateChange('endDate', e.target.value)} />
+                      )
+                    })()}
                   </div>
                 </div>
                 {/* Bug #11：卡片會被移動的確認 */}
@@ -567,21 +565,9 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                     disabled={!inviteEmail.trim()}
                     onClick={() => {
                       const joinUrl = `${window.location.origin}/?join=${tripId}`
-                      const subject = `邀請你加入旅遊計畫「${trip?.name ?? ''}」`
-                      const dates = trip ? `📅 行程日期：${trip.startDate} ～ ${trip.endDate}` : ''
-                      const body = [
-                        `嗨！`,
-                        ``,
-                        `你的朋友邀請你一起規劃旅遊行程 🎉`,
-                        ``,
-                        `✈️ 旅遊計畫：${trip?.name ?? ''}`,
-                        dates,
-                        ``,
-                        `👉 點此連結直接加入（不需要密碼）：`,
-                        joinUrl,
-                        ``,
-                        `期待和你一起旅行！`,
-                      ].filter(l => l !== null && l !== undefined).join('\n')
+                      const dates = trip ? `${trip.startDate} ～ ${trip.endDate}` : ''
+                      const subject = t('settings.invite.emailSubject', { name: trip?.name ?? '' })
+                      const body = t('settings.invite.emailBody', { name: trip?.name ?? '', dates, url: joinUrl })
                       const mailto = `mailto:${encodeURIComponent(inviteEmail.trim())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
                       window.open(mailto, '_self')
                       setInviteSent(true)
@@ -911,7 +897,7 @@ function TrashZone({ visible, isMobile }) {
 // ── 左側 Sidebar ────────────────────────────
 function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExportPDF }) {
   const navigate = useNavigate()
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
 
   const counts = cards.reduce((acc, c) => {
     acc[c.type] = (acc[c.type] || 0) + 1
@@ -963,7 +949,7 @@ function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExp
         <p style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10 }}>
           {t('board.sidebar.mapWeather')}
         </p>
-        <MapErrorBoundary>
+        <MapErrorBoundary lang={lang}>
           <DayMapView trip={trip} cards={cards} mapHeight={180} />
         </MapErrorBoundary>
       </div>
@@ -1482,13 +1468,14 @@ class MapErrorBoundary extends Component {
   componentDidCatch(error, info) { console.error('[MapErrorBoundary]', error, info) }
   render() {
     if (this.state.hasError) {
+      const prefix = this.props.lang === 'en' ? '⚠️ Map component error: ' : '⚠️ 地圖元件錯誤：'
       return (
         <div style={{
           margin: '4px 0 8px', padding: '10px 12px', borderRadius: 12,
           background: 'rgba(254,242,242,0.95)', border: '1.5px solid rgba(239,68,68,0.28)',
           fontSize: 11, color: '#B91C1C', lineHeight: 1.5,
         }}>
-          ⚠️ 地圖元件錯誤：{this.state.error?.message ?? 'render error'}
+          {prefix}{this.state.error?.message ?? 'render error'}
         </div>
       )
     }
@@ -1568,12 +1555,19 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
   const statusText    = isTripFuture ? t('board.status.upcoming') : isTripPast ? t('board.status.ended') : t('board.status.ongoing')
   const statusColor   = isTripFuture ? '#0EA5E9'  : isTripPast ? '#94A3B8' : '#10B981'
 
-  const TUTORIAL_FALLBACK = useMemo(() => tutorialActive ? [
-    { id: 'tf1', type: 'attraction', title: '龍山寺', startTime: '10:00', lat: 25.0373, lng: 121.4999, isFuture: false },
-    { id: 'tf2', type: 'restaurant', title: '鼎泰豐', startTime: '12:00', lat: 25.0420, lng: 121.5635, isFuture: false },
-    { id: 'tf3', type: 'attraction', title: '台北101', startTime: '14:00', lat: 25.0339, lng: 121.5645, isFuture: false },
-    { id: 'tf4', type: 'attraction', title: '象山步道', startTime: '16:30', lat: 25.0253, lng: 121.5746, isFuture: false },
-  ] : [], [tutorialActive])
+  const TUTORIAL_FALLBACK = useMemo(() => tutorialActive ? (
+    lang === 'en' ? [
+      { id: 'tf1', type: 'attraction', title: 'Senso-ji Temple', startTime: '10:00', lat: 35.7148, lng: 139.7967, isFuture: false },
+      { id: 'tf2', type: 'restaurant', title: 'Ichiran Ramen', startTime: '12:00', lat: 35.6951, lng: 139.7037, isFuture: false },
+      { id: 'tf3', type: 'attraction', title: 'Tokyo Skytree', startTime: '14:00', lat: 35.7101, lng: 139.8107, isFuture: false },
+      { id: 'tf4', type: 'attraction', title: 'Shibuya Crossing', startTime: '16:30', lat: 35.6595, lng: 139.7004, isFuture: false },
+    ] : [
+      { id: 'tf1', type: 'attraction', title: '龍山寺', startTime: '10:00', lat: 25.0373, lng: 121.4999, isFuture: false },
+      { id: 'tf2', type: 'restaurant', title: '鼎泰豐', startTime: '12:00', lat: 25.0420, lng: 121.5635, isFuture: false },
+      { id: 'tf3', type: 'attraction', title: '台北101', startTime: '14:00', lat: 25.0339, lng: 121.5645, isFuture: false },
+      { id: 'tf4', type: 'attraction', title: '象山步道', startTime: '16:30', lat: 25.0253, lng: 121.5746, isFuture: false },
+    ]
+  ) : [], [tutorialActive, lang])
 
   const dayCards = useMemo(() => {
     if (!Array.isArray(cards)) return TUTORIAL_FALLBACK
@@ -1611,10 +1605,10 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
         if (d?.current) {
           setWeather(d.current)
         } else {
-          setWeatherError('API 回應異常: ' + JSON.stringify(d).slice(0, 80))
+          setWeatherError(t('board.weather.error'))
         }
       })
-      .catch(e => setWeatherError('網路錯誤: ' + e.message))
+      .catch(() => setWeatherError(t('board.weather.error')))
   }, [wxLat, wxLng])
 
   const cacheKey = dayCards.map(c => `${c.id}${c.lat}${c.lng}`).join(',')
@@ -1666,7 +1660,7 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
         const iw = new google.maps.InfoWindow({
           content: `<div style="font-size:13px;font-weight:700;color:#1E293B">${card.title}</div>` +
             `<div style="font-size:11px;color:#64748B">${card.startTime ?? ''}` +
-            (card.isFuture ? ' · <span style="color:#0EA5E9">未來行程</span>' : '') + '</div>',
+            (card.isFuture ? ' · <span style="color:#0EA5E9">' + t('board.map.futureTrip') + '</span>' : '') + '</div>',
         })
         marker.addListener('click', () => iw.open(mapObj.current, marker))
       })
@@ -1707,15 +1701,11 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
 
   if (wxLat == null && dayCards.length === 0 && !tutorialActive) return (
     <div style={{
-      margin: '8px 0 16px', padding: '12px 14px', borderRadius: 14,
-      background: 'rgba(254,242,242,0.95)', border: '1.5px solid rgba(239,68,68,0.30)',
+      margin: '8px 0 16px', padding: '10px 14px', borderRadius: 12,
+      background: 'rgba(250,246,234,0.70)', border: '1px solid rgba(165,125,65,0.18)',
     }}>
-      <div style={{ fontSize: 12, fontWeight: 900, color: '#EF4444', marginBottom: 6 }}>🔍 地圖/天氣 診斷</div>
-      <div style={{ fontSize: 11, color: '#B91C1C', lineHeight: 1.6 }}>
-        <div>❌ 沒有座標資料（wxLat: null）</div>
-        <div>❌ 沒有地圖卡片（dayCards: 0）</div>
-        <div>💡 需要用地點搜尋新增卡片才能顯示地圖/天氣</div>
-        <div style={{ marginTop: 4, opacity: 0.7 }}>今日: {activeDay} · 卡片總數: {Array.isArray(cards) ? cards.length : 'N/A'} · 教學模式: {String(tutorialActive)}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+        🗺️ {t('board.map.debug.hint')}
       </div>
     </div>
   )
@@ -1760,7 +1750,7 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
             ) : weatherError ? (
               <span style={{ fontSize: 10, color: '#EF4444', fontWeight: 700 }}>⚠️ {weatherError}</span>
             ) : (
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>⏳ 天氣載入中</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>⏳ {t('board.map.loading')}</span>
             )}
           </div>
         )}
@@ -1784,7 +1774,7 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
                 justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13, fontWeight: 800,
                 pointerEvents: 'none' }}>
-                <Map size={18} style={{ marginRight: 6 }} /> 載入地圖中…
+                <Map size={18} style={{ marginRight: 6 }} /> {t('board.map.loading')}
               </div>
             )}
             {/* Error overlay */}
@@ -1793,12 +1783,12 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
                 alignItems: 'center', justifyContent: 'center', gap: 6, padding: 16,
                 background: 'rgba(254,242,242,0.97)' }}>
                 <AlertTriangle size={22} color="#EF4444" />
-                <span style={{ fontSize: 13, fontWeight: 900, color: '#EF4444', textAlign: 'center' }}>地圖載入失敗</span>
+                <span style={{ fontSize: 13, fontWeight: 900, color: '#EF4444', textAlign: 'center' }}>{t('board.map.loadError')}</span>
                 <span style={{ fontSize: 11, color: '#B91C1C', textAlign: 'center', wordBreak: 'break-all', maxWidth: '90%',
                   background: 'rgba(239,68,68,0.08)', borderRadius: 8, padding: '6px 10px',
                   border: '1px solid rgba(239,68,68,0.20)', fontFamily: 'monospace' }}>{mapError}</span>
                 <span style={{ fontSize: 10, color: '#92400E', textAlign: 'center', marginTop: 2 }}>
-                  wxLat: {wxLat?.toFixed(4)} · 請確認 Google Maps API 金鑰已設定並啟用 Maps JavaScript API
+                  wxLat: {wxLat?.toFixed(4)} · {t('board.map.errorApiHint')}
                 </span>
               </div>
             )}
@@ -1824,7 +1814,7 @@ function DayMapView({ trip, cards, mapHeight = 230, day }) {
                   {card.startTime ?? ''} · {card.title}
                   {card.isFuture && (
                     <span style={{ fontSize: 9, fontWeight: 900, color: '#0EA5E9',
-                      background: 'rgba(14,165,233,0.12)', borderRadius: 4, padding: '1px 4px' }}>未來</span>
+                      background: 'rgba(14,165,233,0.12)', borderRadius: 4, padding: '1px 4px' }}>{t('board.status.upcoming')}</span>
                   )}
                 </div>
               )
@@ -1861,19 +1851,42 @@ function MobileOverview({ trip, cards, onCardClick, onDeleteCard, onDaySelect, s
 
   const filteredCards = searchQuery.trim()
     ? cards.filter(c => {
+        const TYPE_ZH = { attraction: '景點', restaurant: '餐廳', accommodation: '住宿', transport: '交通', note: '筆記', expense: '消費' }
+        const TYPE_EN = { attraction: 'attraction', restaurant: 'restaurant', accommodation: 'accommodation', transport: 'transport', note: 'note', expense: 'expense' }
         const q = searchQuery.toLowerCase()
         return (c.title ?? '').toLowerCase().includes(q)
           || (c.content ?? '').toLowerCase().includes(q)
           || (c.address ?? '').toLowerCase().includes(q)
+          || (TYPE_ZH[c.type] ?? '').includes(searchQuery)
+          || (TYPE_EN[c.type] ?? '').includes(q)
+          || (c.from ?? '').toLowerCase().includes(q)
+          || (c.to ?? '').toLowerCase().includes(q)
       })
     : cards
 
   const totalCards = cards.filter(c => c.type !== 'expense').length
+  const [selectedMapDay, setSelectedMapDay] = useState(null)
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '0 12px 16px' }}>
       {/* 當天行程地圖 */}
-      {!searchQuery && <MapErrorBoundary><DayMapView trip={trip} cards={cards} /></MapErrorBoundary>}
+      {!searchQuery && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            {selectedMapDay && (
+              <button
+                onClick={() => setSelectedMapDay(null)}
+                style={{
+                  fontSize: 10, fontWeight: 900, padding: '2px 8px', borderRadius: 99,
+                  border: '1.5px solid rgba(180,83,9,0.35)', background: 'rgba(180,83,9,0.10)',
+                  color: '#B45309', cursor: 'pointer',
+                }}
+              >{t('board.map.auto')}</button>
+            )}
+          </div>
+          <MapErrorBoundary lang={lang}><DayMapView trip={trip} cards={cards} day={selectedMapDay} /></MapErrorBoundary>
+        </div>
+      )}
 
       {/* 旅程統計摘要 */}
       {!searchQuery && (
@@ -1882,13 +1895,13 @@ function MobileOverview({ trip, cards, onCardClick, onDeleteCard, onDaySelect, s
             background: 'rgba(180,83,9,0.08)', border: '1.5px solid rgba(180,83,9,0.20)',
             textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--accent)' }}>{days.length}</div>
-            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)' }}>天</div>
+            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)' }}>{t('board.overview.stats.days')}</div>
           </div>
           <div style={{ flex: 1, minWidth: 80, padding: '10px 12px', borderRadius: 14,
             background: 'rgba(15,118,110,0.08)', border: '1.5px solid rgba(15,118,110,0.20)',
             textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 900, color: '#0F766E' }}>{totalCards}</div>
-            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)' }}>行程</div>
+            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)' }}>{t('board.overview.stats.trips')}</div>
           </div>
         </div>
       )}
@@ -1926,6 +1939,14 @@ function MobileOverview({ trip, cards, onCardClick, onDeleteCard, onDaySelect, s
               <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 800, color: 'var(--text-muted)' }}>
                 {dayCards.length > 0 ? t('board.overview.items', { count: dayCards.length }) : t('board.overview.view')}
               </span>
+              <button
+                onClick={e => { e.stopPropagation(); setSelectedMapDay(day) }}
+                title={t('board.map.viewDay')}
+                style={{
+                  fontSize: 14, background: 'transparent', border: 'none', cursor: 'pointer',
+                  padding: '0 4px', lineHeight: 1, flexShrink: 0,
+                }}
+              >🗺️</button>
             </div>
 
             {/* 卡片列表 */}
@@ -2014,7 +2035,7 @@ export default function TripBoard() {
   const { isMobile } = useWindowSize()
   const { isMobileMode, toggleMode } = useViewMode()
   const { tutorialActive, currentStepData, nextStep } = useTutorial()
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [trip, setTrip]                   = useState(null)
   const [loading, setLoading]             = useState(true)
   const [error, setError]                 = useState('')
@@ -2037,18 +2058,22 @@ export default function TripBoard() {
   }, [])
   // Mobile-only state — persisted so navigating to checklist/packing and back restores the selected day
   const mobileDayKey = `board-mobile-day-${tripId}`
+  // LINE WebView on iOS may throw SecurityError on sessionStorage access — guard all calls
+  const ssGet = (key) => { try { return sessionStorage.getItem(key) } catch { return null } }
+  const ssSet = (key, val) => { try { sessionStorage.setItem(key, val) } catch { /* ignore */ } }
+  const ssRemove = (key) => { try { sessionStorage.removeItem(key) } catch { /* ignore */ } }
   const [mobileDay, setMobileDayRaw] = useState(() => {
     // Prefer navigation state (passed from ChecklistPage on back) for reliability
     const stateDay = location.state?.returnDay
     if (stateDay) {
-      sessionStorage.setItem(`board-mobile-day-${tripId}`, stateDay)
+      ssSet(`board-mobile-day-${tripId}`, stateDay)
       return stateDay
     }
-    return sessionStorage.getItem(`board-mobile-day-${tripId}`) ?? null
+    return ssGet(`board-mobile-day-${tripId}`)
   })
   const setMobileDay = useCallback((day) => {
-    if (day === null) sessionStorage.removeItem(mobileDayKey)
-    else sessionStorage.setItem(mobileDayKey, day)
+    if (day === null) ssRemove(mobileDayKey)
+    else ssSet(mobileDayKey, day)
     setMobileDayRaw(day)
   }, [mobileDayKey])
   const [mobileSearchVisible, setMobileSearchVisible] = useState(false)
@@ -2063,6 +2088,7 @@ export default function TripBoard() {
     let unsubCards = null
     let unsubTrip = null
 
+    if (!currentUser?.uid) return
     getTrip(tripId)
       .then(async data => {
         if (cancelled) return
@@ -2077,7 +2103,7 @@ export default function TripBoard() {
         // Initialize mobile day: restore saved day if valid, else today or overview
         const todayStr = getLocalDateStr()
         const tripDays = getDaysInRange(data.startDate, data.endDate)
-        const savedDay = sessionStorage.getItem(mobileDayKey)
+        const savedDay = ssGet(mobileDayKey)
         if (savedDay && tripDays.includes(savedDay)) {
           // Restore the day the user was on before navigating away
         } else {
@@ -2153,6 +2179,13 @@ export default function TripBoard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tutorialActive, currentStepData?.id, trip])
 
+  // 教學 export-pdf 步驟：自動打開設定選單
+  useEffect(() => {
+    if (tutorialActive && currentStepData?.id === 'export-pdf') {
+      setShowSettings(true)
+    }
+  }, [tutorialActive, currentStepData?.id])
+
   const handleDragStart = ({ active }) => {
     setDraggingCard(cards.find(c => c.id === active.id) ?? null)
   }
@@ -2191,8 +2224,10 @@ export default function TripBoard() {
       return
     }
 
-    const days      = getDaysInRange(trip.startDate, trip.endDate)
-    const newDayIdx = Math.max(0, Math.min(days.length - 1, days.indexOf(card.day) + deltaDays))
+    const days = getDaysInRange(trip.startDate, trip.endDate)
+    const currentDayIdx = days.indexOf(card.day)
+    if (currentDayIdx === -1) { triggerDropBounce(active.id); return }
+    const newDayIdx = Math.max(0, Math.min(days.length - 1, currentDayIdx + deltaDays))
     const newDay    = days[newDayIdx]
     const newMin    = Math.max(START_HOUR * 60, Math.min((END_HOUR - 0.5) * 60,
       timeToMinutes(card.startTime) + deltaSlots * 30))
@@ -2208,6 +2243,7 @@ export default function TripBoard() {
 
     if (colliding) {
       triggerCollisionShake(card.id, colliding.id)
+      showToast(t('board.toast.dragCollision'), 'warning')
       return
     }
 
@@ -2243,7 +2279,13 @@ export default function TripBoard() {
         rating: pendingNearby.place.rating ?? null,
       }, actor)
     }
-  }, [tripId, navigate, actor])
+  }, [tripId, actor])
+
+  // 拖曳教學步驟期間禁止打開卡片詳情，避免誤觸導致教學流程中斷
+  const handleCardClick = useCallback((card) => {
+    if (tutorialActive && currentStepData?.id === 'drag-drop') return
+    setDetailCard(card)
+  }, [tutorialActive, currentStepData?.id])
 
   const handleDeleteCard = useCallback(async (id) => {
     await deleteCard(tripId, id, actor)
@@ -2266,6 +2308,15 @@ export default function TripBoard() {
     if (!detailCard) return
     const updated = cards.find(c => c.id === detailCard.id)
     if (updated) {
+      if (
+        detailCard.title !== updated.title ||
+        detailCard.content !== updated.content ||
+        detailCard.startTime !== updated.startTime ||
+        detailCard.address !== updated.address ||
+        detailCard.duration !== updated.duration
+      ) {
+        showToast(t('board.toast.cardEditedExternally'), 'warning')
+      }
       setDetailCard(updated)
     } else {
       setDetailCard(null) // 卡片已被刪除（協作者刪除），關閉面板
@@ -2283,7 +2334,7 @@ export default function TripBoard() {
 
   const handleSeedCards = useCallback(async () => {
     if (!trip) return
-    const seeds = makeSeedCards(trip.startDate)
+    const seeds = makeSeedCards(trip.startDate, t)
     // 種子卡片是本地初始化，不觸發通知
     await Promise.all(seeds.map(c => addCard(tripId, c)))
   }, [trip, tripId])
@@ -2306,10 +2357,12 @@ export default function TripBoard() {
     const TYPE_ICON = { attraction: '📍', transport: '🚌' }
 
     // Bug #31：所有嵌入 HTML 的字串都要 escape，防止 XSS
+    const htmlLang = lang === 'en' ? 'en' : 'zh-TW'
+    const dateLocale = lang === 'en' ? 'en-US' : 'zh-TW'
     const html = `<!DOCTYPE html>
-<html lang="zh-TW"><head>
+<html lang="${htmlLang}"><head>
 <meta charset="utf-8"/>
-<title>${escHtml(trip.name)} — 旅遊行程</title>
+<title>${escHtml(trip.name)} — ${t('board.pdf.title')}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #2B1709; background: #FAF6ED; padding: 40px; font-size: 13px; }
@@ -2327,7 +2380,7 @@ export default function TripBoard() {
 </style>
 </head><body>
 <h1>✈️ ${escHtml(trip.name)}</h1>
-<p class="meta">${escHtml(trip.startDate)} – ${escHtml(trip.endDate)}　共 ${getTripDuration(trip.startDate, trip.endDate)} 天</p>
+<p class="meta">${escHtml(trip.startDate)} – ${escHtml(trip.endDate)}　${t('board.pdf.totalDays', { n: getTripDuration(trip.startDate, trip.endDate) })}</p>
 
 ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
 <div class="day-block">
@@ -2348,19 +2401,19 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
 </div>`).join('')}
 
 
-<div class="footer">由 TripTogether 匯出 · ${escHtml(new Date().toLocaleDateString('zh-TW'))}</div>
+<div class="footer">${t('board.pdf.exportedBy')} · ${escHtml(new Date().toLocaleDateString(dateLocale))}</div>
 </body></html>`
 
     const win = window.open('', '_blank')
     if (!win) {
-      alert('⚠️ ' + t('settings.pdfPopupBlocked'))
+      showToast(t('settings.pdfPopupBlocked'), 'warning')
       setPdfToast(false)
       return
     }
     win.document.write(html)
     win.document.close()
     setTimeout(() => win.print(), 600)
-  }, [trip, cards, t])
+  }, [trip, cards, t, lang])
 
   const boardCards = cards.filter(c => c.type !== 'expense')
 
@@ -2378,16 +2431,16 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'center' }}><Plane size={60} color="var(--text-muted)" /></div>
-      <p style={{ fontSize: 17, fontWeight: 900, color: 'var(--text-secondary)' }}>載入旅遊計畫中…</p>
+      <p style={{ fontSize: 17, fontWeight: 900, color: 'var(--text-secondary)' }}>{t('board.loading')}</p>
     </div>
   )
 
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 24, padding: 32 }}>
       <div style={{ display: 'flex', justifyContent: 'center' }}><Frown size={60} color="var(--text-muted)" /></div>
-      <p style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>讀取失敗</p>
+      <p style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)' }}>{t('board.error.loadFailed')}</p>
       <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-secondary)' }}>{error}</p>
-      <button className="btn-game btn-primary" style={{ padding: '14px 36px' }} onClick={() => navigate('/')}>返回首頁</button>
+      <button className="btn-game btn-primary" style={{ padding: '14px 36px' }} onClick={() => navigate('/')}>{t('board.error.homeReturn')}</button>
     </div>
   )
 
@@ -2436,7 +2489,6 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
           onTripUpdate={handleTripUpdate}
           isMobile={isMobileMode}
           cards={cards}
-          onLeaveSuccess={() => showToast(t('board.toast.leftTrip'), 'info')}
         />
       )}
       {pdfToast && (
@@ -2517,7 +2569,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
                   className="game-input"
                   type="text"
                   autoFocus
-                  placeholder="搜尋行程卡片…"
+                  placeholder={t('board.searchCards')}
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   style={{ paddingLeft: 34, paddingTop: 8, paddingBottom: 8, fontSize: 14, width: '100%' }}
@@ -2539,7 +2591,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
               <MobileOverview
                 trip={trip}
                 cards={filteredCards}
-                onCardClick={setDetailCard}
+                onCardClick={handleCardClick}
                 onDeleteCard={handleDeleteCard}
                 onDaySelect={setMobileDay}
                 searchQuery={searchQuery}
@@ -2564,7 +2616,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
                   cards={filteredCards}
                   onSlotClick={(day, time) => setModal({ day, time })}
                   onDeleteCard={handleDeleteCard}
-                  onCardClick={setDetailCard}
+                  onCardClick={handleCardClick}
                   droppedCardId={droppedCardId}
                   shakingCardIds={shakingCardIds}
                   firstCardTutorialId={tutorialActive && currentStepData?.id === 'drag-drop' ? 'drag-card' : undefined}
@@ -2688,7 +2740,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
                 <input
                   className="game-input"
                   type="text"
-                  placeholder="搜尋行程卡片…"
+                  placeholder={t('board.searchCards')}
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   style={{ paddingLeft: 36, paddingTop: 9, paddingBottom: 9, fontSize: 13 }}
@@ -2697,15 +2749,15 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
               {searchQuery && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', background: 'rgba(180,83,9,0.10)', border: '1.5px solid rgba(180,83,9,0.22)', padding: '4px 10px', borderRadius: 99 }}>
-                    {filteredCards.length} 筆
+                    {t('board.searchResults', { count: filteredCards.length })}
                   </span>
                   <button onClick={() => setSearchQuery('')} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 900, color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><X size={14} /></button>
                 </div>
               )}
               <div style={{ marginLeft: 'auto', display: 'flex', borderRadius: 11, overflow: 'hidden', border: '1.5px solid rgba(165,125,65,0.25)', background: 'var(--bg-elevated)', flexShrink: 0 }}>
                 {[
-                  { mode: 'timeline', IconComp: Clock, label: '時間軸' },
-                  { mode: 'list',     IconComp: List,  label: '清單' },
+                  { mode: 'timeline', IconComp: Clock, label: t('board.viewTimeline') },
+                  { mode: 'list',     IconComp: List,  label: t('board.viewList') },
                 ].map(({ mode, IconComp, label }) => (
                   <button key={mode} onClick={() => setViewMode(mode)} style={{
                     padding: '7px 13px', fontSize: 12, fontWeight: 900, border: 'none', cursor: 'pointer',
@@ -2736,7 +2788,7 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
                     cards={filteredCards}
                     onSlotClick={(day, time) => setModal({ day, time })}
                     onDeleteCard={handleDeleteCard}
-                    onCardClick={setDetailCard}
+                    onCardClick={handleCardClick}
                     droppedCardId={droppedCardId}
                     shakingCardIds={shakingCardIds}
                   />
@@ -2770,21 +2822,21 @@ ${cardsByDay.map(({ day, cards: dc }) => dc.length === 0 ? '' : `
                       flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14,
                     }}>
                       <Map size={52} color="var(--text-muted)" />
-                      <p style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-secondary)' }}>行程是空的</p>
+                      <p style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-secondary)' }}>{t('board.emptyTitle')}</p>
                       <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', textAlign: 'center' }}>
-                        點右下角「＋」新增行程，或載入範例
+                        {t('board.emptyHint')}
                       </p>
                       <button onClick={handleSeedCards} style={{
                         padding: '11px 26px', borderRadius: 14, fontSize: 13, fontWeight: 900,
                         background: 'linear-gradient(135deg,#D97706,#B45309)',
                         border: 'none', boxShadow: '0 5px 0 #78350F', color: '#fff', cursor: 'pointer',
-                      }}><ClipboardList size={14} style={{ marginRight: 6 }} /> 新增範例行程</button>
+                      }}><ClipboardList size={14} style={{ marginRight: 6 }} /> {t('board.addSample')}</button>
                     </div>
                   ) : (
                     <ListView
                       cards={filteredCards}
                       trip={trip}
-                      onCardClick={setDetailCard}
+                      onCardClick={handleCardClick}
                       onDeleteCard={handleDeleteCard}
                     />
                   )}

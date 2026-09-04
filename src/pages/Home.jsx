@@ -186,16 +186,34 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave, isMobileMode 
           <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 8 }}>
             {trip.startDate} – {trip.endDate}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--accent)',
-              background: 'rgba(180,83,9,0.10)', border: '1.5px solid rgba(180,83,9,0.22)',
-              padding: '3px 10px', borderRadius: 99 }}>
-              {t('home.tripDays', { days })}
-            </span>
-            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)' }}>
-              {t('home.tripMembers', { count: trip.members?.length ?? 0 })}
-            </span>
-          </div>
+          {(() => {
+            const todayStr = new Date().toISOString().split('T')[0]
+            const tripStatus = todayStr < trip.startDate ? 'upcoming' : todayStr <= trip.endDate ? 'ongoing' : 'ended'
+            const statusStyle = tripStatus === 'ongoing'
+              ? { bg: 'rgba(5,150,105,0.10)', border: 'rgba(5,150,105,0.28)', color: '#059669', label: t('board.status.ongoing') }
+              : tripStatus === 'upcoming'
+              ? { bg: 'rgba(14,165,233,0.10)', border: 'rgba(14,165,233,0.28)', color: '#0EA5E9', label: t('board.status.upcoming') }
+              : { bg: 'rgba(148,163,184,0.10)', border: 'rgba(148,163,184,0.28)', color: '#94A3B8', label: t('board.status.ended') }
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--accent)',
+                  background: 'rgba(180,83,9,0.10)', border: '1.5px solid rgba(180,83,9,0.22)',
+                  padding: '3px 10px', borderRadius: 99 }}>
+                  {t('home.tripDays', { days })}
+                </span>
+                <span style={{
+                  fontSize: 10, fontWeight: 900,
+                  background: statusStyle.bg, border: `1.5px solid ${statusStyle.border}`,
+                  color: statusStyle.color, padding: '2px 8px', borderRadius: 99,
+                }}>
+                  {statusStyle.label}
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)' }}>
+                  {t('home.tripMembers', { count: trip.members?.length ?? 0 })}
+                </span>
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>
@@ -205,7 +223,8 @@ function TripCard({ trip, currentUser, onClick, onDelete, onLeave, isMobileMode 
 // ── 建立計畫 Modal ────────────────────────────
 function CreateModal({ uid, onClose, onCreated }) {
   const navigate = useNavigate()
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
+  const { currentUser } = useAuth()
   const [form, setForm] = useState({ tripName: '', startDate: '', endDate: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -218,19 +237,28 @@ function CreateModal({ uid, onClose, onCreated }) {
     const days = Math.round((new Date(form.endDate) - new Date(form.startDate)) / (24 * 60 * 60 * 1000)) + 1
     if (days > 60) { setError(t('settings.dateRangeMax')); return }
     // Bug #29：trip name 長度限制
+    if (!form.tripName.trim()) { setError(t('create.error.nameEmpty')); return }
     if (form.tripName.trim().length > 50) { setError(t('create.error.nameTooLong')); return }
+    if (!uid) { setError(t('create.error.notLoggedIn')); return }
     setLoading(true)
     try {
+      // Force token refresh before Firestore calls — fixes iOS Safari auth timing issues
+      try { await currentUser?.getIdToken(true) } catch { /* proceed anyway */ }
       const code = await createTrip({
-        name: form.tripName.trim(), startDate: form.startDate, endDate: form.endDate, uid,
+        name: form.tripName.trim(), startDate: form.startDate, endDate: form.endDate, uid, lang,
       })
       // 自動新增範例卡片，幫助新使用者了解各類型功能
       try {
         const d = form.startDate
+        const isEn = lang === 'en'
+        // zh → 台北信義區；en → 紐約時代廣場
+        const sampleCoords = isEn
+          ? { attraction: { lat: 40.7580, lng: -73.9855 }, restaurant: { lat: 40.7574, lng: -73.9882 }, accommodation: { lat: 40.7590, lng: -73.9845 } }
+          : { attraction: { lat: 25.0339, lng: 121.5645 }, restaurant: { lat: 25.0302, lng: 121.5637 }, accommodation: { lat: 25.0400, lng: 121.5654 } }
         await Promise.all([
-          addCard(code, { type: 'attraction', title: t('sample.attraction.title'), day: d, startTime: '09:00', duration: 90, address: '台北 101，信義路五段 7 號', lat: 25.0339, lng: 121.5645 }),
-          addCard(code, { type: 'restaurant', title: t('sample.restaurant.title'), day: d, startTime: '12:00', duration: 60, address: '饒河街夜市，松山區', lat: 25.0507, lng: 121.5776 }),
-          addCard(code, { type: 'accommodation', title: t('sample.accommodation.title'), day: d, startTime: '15:00', duration: 60, address: t('sample.accommodation.address'), lat: null, lng: null }),
+          addCard(code, { type: 'attraction', title: t('sample.attraction.title'), day: d, startTime: '09:00', duration: 90, address: t('sample.attraction.address'), ...sampleCoords.attraction }),
+          addCard(code, { type: 'restaurant', title: t('sample.restaurant.title'), day: d, startTime: '12:00', duration: 60, address: t('sample.restaurant.address'), ...sampleCoords.restaurant }),
+          addCard(code, { type: 'accommodation', title: t('sample.accommodation.title'), day: d, startTime: '15:00', duration: 60, address: t('sample.accommodation.address'), ...sampleCoords.accommodation }),
           addCard(code, { type: 'transport', title: t('sample.transport.title'), day: d, startTime: '07:00', duration: 60, from: t('sample.transport.from'), to: t('sample.transport.to') }),
           addCard(code, { type: 'note', title: t('sample.note.title'), day: d, startTime: '20:00', duration: 30, content: t('sample.note.content') }),
         ])
@@ -238,16 +266,21 @@ function CreateModal({ uid, onClose, onCreated }) {
       onCreated?.()
       navigate(`/trip/${code}`)
     } catch (err) {
-      setError(err.message || t('create.error.failed'))
+      const msg = err.code === 'permission-denied'
+        ? t('create.error.permissionDenied')
+        : t('create.error.failed')
+      setError(msg)
     } finally { setLoading(false) }
   }
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200,
       background: 'rgba(120,80,20,0.28)', backdropFilter: 'blur(8px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      padding: '20px 20px env(safe-area-inset-bottom, 20px)',
+      overflowY: 'auto' }}
       onClick={onClose}>
-      <form className="glass-card-glow" style={{ width: '100%', maxWidth: 420, padding: '32px 28px', boxSizing: 'border-box', overflow: 'hidden' }}
+      <form className="glass-card-glow" style={{ width: '100%', maxWidth: 420, padding: '28px 24px', boxSizing: 'border-box', flexShrink: 0, marginTop: 'max(20px, env(safe-area-inset-top, 20px))' }}
         onClick={e => e.stopPropagation()} onSubmit={handleSubmit}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
           <Map size={26} color="var(--text-muted)" />
@@ -267,11 +300,11 @@ function CreateModal({ uid, onClose, onCreated }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ overflow: 'hidden', minWidth: 0 }}>
               <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('create.label.start')}</label>
-              <input className="game-input" type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} disabled={loading} required style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', minWidth: 0, fontSize: 13, padding: '10px 12px' }} />
+              <input className="game-input" type="date" value={form.startDate} min={getLocalDateStr()} onChange={e => setForm({...form, startDate: e.target.value})} disabled={loading} required style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', minWidth: 0, fontSize: 13, padding: '10px 12px' }} />
             </div>
             <div style={{ overflow: 'hidden', minWidth: 0 }}>
               <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('create.label.end')}</label>
-              <input className="game-input" type="date" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} disabled={loading} required style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', minWidth: 0, fontSize: 13, padding: '10px 12px' }} />
+              <input className="game-input" type="date" value={form.endDate} min={form.startDate || getLocalDateStr()} onChange={e => setForm({...form, endDate: e.target.value})} disabled={loading} required style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', minWidth: 0, fontSize: 13, padding: '10px 12px' }} />
             </div>
           </div>
           <div style={{ padding: '9px 12px', borderRadius: 11,
@@ -436,6 +469,15 @@ export default function Home() {
 
   const { t } = useLanguage()
   const [actionError, setActionError] = useState('')
+  const [homeToast, setHomeToast] = useState(null)
+
+  useEffect(() => {
+    if (location.state?.toast === 'leftTrip') {
+      setHomeToast(t('board.toast.leftTrip'))
+      setTimeout(() => setHomeToast(null), 3500)
+      window.history.replaceState({}, '', '/')
+    }
+  }, [location.state?.toast, t])
 
   const handleDelete = async (tripCode) => {
     setActionError('')
@@ -461,6 +503,8 @@ export default function Home() {
         uid: currentUser?.uid,
         displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
       })
+      setHomeToast(t('board.toast.leftTrip'))
+      setTimeout(() => setHomeToast(null), 3500)
     } catch (err) {
       console.error(err)
       setActionError(t('home.error.leave'))
@@ -566,11 +610,11 @@ export default function Home() {
                 </div>
               )}
               <button onClick={handleSignOut} style={{
-                width: 34, height: 34, borderRadius: 10, border: '1.5px solid rgba(165,125,65,0.28)',
-                background: 'var(--bg-elevated)', color: 'var(--text-muted)', fontSize: 13,
+                height: 34, borderRadius: 10, border: '1.5px solid rgba(165,125,65,0.28)',
+                background: 'var(--bg-elevated)', color: 'var(--text-muted)', fontSize: 11,
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 900,
-              }}>↩</button>
+                fontWeight: 900, padding: '0 8px',
+              }}>{t('home.signOut')}</button>
             </>
           ) : (
             <>
@@ -779,18 +823,16 @@ export default function Home() {
             <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 24 }}>
               {t('home.empty.desc')}
             </p>
-            {!isMobileMode && (
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <button onClick={() => setModal('create')} className="btn-game btn-primary"
-                  style={{ padding: '14px 28px', fontSize: 15 }}>
-                  {t('home.createLong')}
-                </button>
-                <button onClick={() => setModal('join')} className="btn-game btn-ghost"
-                  style={{ padding: '14px 28px', fontSize: 15 }}>
-                  {t('home.joinExisting')}
-                </button>
-              </div>
-            )}
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button onClick={() => setModal('create')} className="btn-game btn-primary"
+                style={{ padding: '14px 28px', fontSize: 15 }}>
+                {t('home.createLong')}
+              </button>
+              <button onClick={() => setModal('join')} className="btn-game btn-ghost"
+                style={{ padding: '14px 28px', fontSize: 15 }}>
+                {t('home.joinExisting')}
+              </button>
+            </div>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: isMobileMode ? '1fr' : 'repeat(auto-fill, minmax(220px, 1fr))', gap: isMobileMode ? 12 : 18 }}>
@@ -845,6 +887,23 @@ export default function Home() {
           onJoined={() => {}}
           initialCode={joinParams.code}
         />
+      )}
+
+      {homeToast && (
+        <div style={{
+          position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 400, padding: '12px 22px', borderRadius: 14,
+          maxWidth: 'calc(100vw - 32px)',
+          background: 'rgba(250,246,234,0.98)',
+          border: '1.5px solid rgba(165,125,65,0.35)',
+          boxShadow: '0 8px 32px rgba(80,40,5,0.25)',
+          fontSize: 13, fontWeight: 900,
+          color: 'var(--text-secondary)',
+          backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          {homeToast}
+        </div>
       )}
     </div>
   )

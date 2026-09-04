@@ -5,8 +5,8 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase'
 
-// 通知有效期：7 天
-const EXPIRY_MS = 7 * 24 * 60 * 60 * 1000
+// 通知有效期：7 天，預扣 5 分鐘讓客戶端時鐘偏快最多 5 分鐘仍能通過 Rules 驗證
+const EXPIRY_MS = 7 * 24 * 60 * 60 * 1000 - 5 * 60 * 1000
 
 // 通知類型
 export const NOTIFICATION_TYPES = {
