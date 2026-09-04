@@ -16,12 +16,13 @@ import {
 } from '../services/firestore'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  X, Plus, Settings2, Trash2,
-  Map, Wallet, FileText, Search, ClipboardList, Package,
-  CheckSquare, MapPin, CalendarDays, Clock, List,
+  X, Settings2, Trash2,
+  Map, FileText, Search, ClipboardList, Package,
+  CheckSquare, CalendarDays, Clock, List,
   Monitor, Smartphone, Pencil,
   Key, Users, User, Info, AlertTriangle,
 } from 'lucide-react'
+import { HdMapPin, HdWallet, HdPlus } from '../components/ui/HanddrawnIcons'
 import { CopyLinkButton, FullscreenButton } from '../components/ui/TopBarActions'
 import ThemeSwitcher from '../components/ui/ThemeSwitcher'
 import { useTheme } from '../contexts/ThemeContext'
@@ -1057,7 +1058,7 @@ function LeftSidebar({ trip, tripId, cards, onShowExpense, onShowSettings, onExp
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <button className="btn-game btn-ghost" style={{ padding: '12px', fontSize: 13, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={onShowExpense}>
-          <Wallet size={15} style={{ marginRight: 6 }} /> {t('board.sidebar.expenses')}
+          <HdWallet size={15} style={{ marginRight: 6 }} /> {t('board.sidebar.expenses')}
         </button>
         <button className="btn-game btn-ghost" style={{ padding: '12px', fontSize: 13, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={onShowSettings}>
@@ -1174,8 +1175,8 @@ function FloatingAddButton({ onAddCard, onAddExpense, bottom = 36, size = 68, ic
   const [open, setOpen] = useState(false)
 
   const menuItems = [
-    { IconComp: Wallet, label: t('board.fab.expense'), color: '#059669', shadow: '#065F46', action: onAddExpense },
-    { IconComp: MapPin, label: t('board.addCard'),     color: '#B45309', shadow: '#7C2D12', action: onAddCard },
+    { IconComp: HdWallet, label: t('board.fab.expense'), color: '#059669', shadow: '#065F46', action: onAddExpense },
+    { IconComp: HdMapPin, label: t('board.addCard'),     color: '#B45309', shadow: '#7C2D12', action: onAddCard },
   ]
 
   const fabBottom = typeof bottom === 'string' ? bottom : bottom
@@ -1236,7 +1237,7 @@ function FloatingAddButton({ onAddCard, onAddExpense, bottom = 36, size = 68, ic
         }}
       >
         <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', lineHeight: 0 }}>
-          <Plus size={iconSize} />
+          <HdPlus size={iconSize} />
         </span>
       </button>
     </>
@@ -1479,7 +1480,7 @@ function MobileBottomBar({ tripId, navigate, onExpense, onSettings, mobileDay })
   const items = [
     { IconComp: CheckSquare, label: t('board.fab.todo'),     tutorialId: 'todo-btn',      action: () => navigate(`/trip/${tripId}/todos`, { state: { returnDay: mobileDay } }) },
     { IconComp: Package,     label: t('board.fab.packing'),  tutorialId: 'packing-btn',   action: () => navigate(`/trip/${tripId}/packing`, { state: { returnDay: mobileDay } }) },
-    { IconComp: Wallet,      label: t('board.fab.expense'),  tutorialId: 'expense-btn',   action: onExpense },
+    { IconComp: HdWallet,    label: t('board.fab.expense'),  tutorialId: 'expense-btn',   action: onExpense },
     { IconComp: Settings2,   label: t('board.settings'),     tutorialId: 'settings-btn',  action: onSettings },
   ]
   return (

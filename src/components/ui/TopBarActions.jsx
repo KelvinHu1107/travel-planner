@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Link, Maximize, Minimize } from 'lucide-react'
+import { Maximize, Minimize } from 'lucide-react'
+import { HdLink } from './HanddrawnIcons'
 
 // 複製當前網頁連結按鈕
 export function CopyLinkButton({ style = {} }) {
@@ -38,7 +39,7 @@ export function CopyLinkButton({ style = {} }) {
         ...style,
       }}
     >
-      <Link size={15} />
+      <HdLink size={15} />
       <span style={{ display: 'var(--link-text-display, inline)' }}>
         {copied ? '已複製！' : '複製連結'}
       </span>
