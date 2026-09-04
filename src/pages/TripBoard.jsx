@@ -25,7 +25,7 @@ import {
 import { CopyLinkButton, FullscreenButton } from '../components/ui/TopBarActions'
 import ThemeSwitcher from '../components/ui/ThemeSwitcher'
 import { useTheme } from '../contexts/ThemeContext'
-import DatePicker from '../components/ui/DatePicker'
+import CalendarPicker from '../components/ui/CalendarPicker'
 import NotificationBell from '../components/ui/NotificationBell'
 
 // Bug #31：PDF/HTML escape helper
@@ -415,7 +415,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>{t('settings.trip.start')}</label>
-                    <DatePicker
+                    <CalendarPicker
                       value={editForm.startDate}
                       min={new Date().toISOString().split('T')[0]}
                       onChange={v => handleDateChange('startDate', v)}
@@ -423,7 +423,7 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                   </div>
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>{t('settings.trip.end')}</label>
-                    <DatePicker
+                    <CalendarPicker
                       value={editForm.endDate}
                       min={editForm.startDate || new Date().toISOString().split('T')[0]}
                       onChange={v => handleDateChange('endDate', v)}
