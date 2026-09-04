@@ -199,7 +199,8 @@ export default function BoardLayout({ trip, cards = [], days: daysProp, mobileMo
 
   useEffect(() => {
     if (!scrollRef.current) return
-    const saved = sessionStorage.getItem(scrollKey)
+    let saved = null
+    try { saved = sessionStorage.getItem(scrollKey) } catch { /* LINE WebView may restrict sessionStorage */ }
     if (saved) {
       try {
         const { top, left } = JSON.parse(saved)
@@ -231,10 +232,12 @@ export default function BoardLayout({ trip, cards = [], days: daysProp, mobileMo
 
   const handleScroll = () => {
     if (!scrollRef.current) return
-    sessionStorage.setItem(scrollKey, JSON.stringify({
-      top: scrollRef.current.scrollTop,
-      left: scrollRef.current.scrollLeft,
-    }))
+    try {
+      sessionStorage.setItem(scrollKey, JSON.stringify({
+        top: scrollRef.current.scrollTop,
+        left: scrollRef.current.scrollLeft,
+      }))
+    } catch { /* ignore */ }
   }
 
   return (

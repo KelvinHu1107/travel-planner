@@ -3,9 +3,11 @@ import { ArrowLeft, Wallet, Monitor, Smartphone } from 'lucide-react'
 import { useViewMode } from '../contexts/ViewModeContext'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { getTrip, subscribeToExpenses, addExpense, deleteExpense, updateExpense } from '../services/firestore'
+import { getTrip, subscribeToExpenses, addExpense, deleteExpense, updateExpense, getMemberProfiles } from '../services/firestore'
 import { getDaysInRange } from '../utils/dateUtils'
 import { useLanguage } from '../i18n/LanguageContext'
+import { onSnapshot, doc } from 'firebase/firestore'
+import { db } from '../services/firebase'
 
 const CURRENCY_FLAG_MAP = {
   TWD: '🇹🇼', JPY: '🇯🇵', USD: '🇺🇸', EUR: '🇪🇺',
@@ -35,6 +37,7 @@ const EXPENSE_CATEGORY_MAP = {
   accommodation: { labelKey: 'expense.category.accommodation', icon: '🏨' },
   activity:      { labelKey: 'expense.category.activity',      icon: '🎡' },
   shopping:      { labelKey: 'expense.category.shopping',      icon: '🛍️' },
+  ticket:        { labelKey: 'expense.category.ticket',        icon: '🎟️' },
   other:         { labelKey: 'expense.category.other',         icon: '💼' },
 }
 
@@ -64,6 +67,8 @@ export default function ExpensePage() {
   const [formNotes,    setFormNotes]    = useState('')
   const [formSaving,   setFormSaving]   = useState(false)
   const [formError,    setFormError]    = useState('')
+  const [formPaidBy,   setFormPaidBy]   = useState(null)
+  const [memberProfiles, setMemberProfiles] = useState([])
 
   const [userViewCurrency, setUserViewCurrency] = useState('TWD')
 
@@ -93,6 +98,16 @@ export default function ExpensePage() {
       if (days.length > 0) setFormDay(days[0])
     }
   }, [trip, formDay])
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'trips', tripId), snap => {
+      if (!snap.exists()) { navigate('/'); return }
+      const members = snap.data().members ?? []
+      if (!members.length) return
+      getMemberProfiles(members, t('common.unknown')).then(setMemberProfiles)
+    }, () => {})
+    return () => unsub()
+  }, [tripId, t])
 
   const days = trip ? getDaysInRange(trip.startDate, trip.endDate) : []
 
@@ -134,6 +149,16 @@ export default function ExpensePage() {
     if (!day) { setFormError(t('expense.error.loading')); return }
     setFormSaving(true)
     setFormError('')
+    const createdBy = {
+      uid: currentUser?.uid ?? '',
+      displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || t('common.unknown'),
+    }
+    const paidByProfile = formPaidBy
+      ? (memberProfiles.find(m => m.uid === formPaidBy) ?? null)
+      : null
+    const paidBy = paidByProfile
+      ? { uid: paidByProfile.uid, displayName: paidByProfile.displayName || paidByProfile.email?.split('@')[0] || t('common.unknown') }
+      : createdBy
     try {
       await addExpense(tripId, {
         title: formTitle.trim(),
@@ -143,14 +168,13 @@ export default function ExpensePage() {
         category: formCategory,
         notes: formNotes.trim(),
         included: true,
-        createdBy: {
-          uid: currentUser?.uid ?? '',
-          displayName: currentUser?.displayName || currentUser?.email?.split('@')[0] || t('common.unknown'),
-        },
+        createdBy,
+        paidBy,
       })
       setFormTitle('')
       setFormAmount('')
       setFormNotes('')
+      setFormPaidBy(null)
       setShowAddForm(false)
     } catch (err) {
       setFormError(t('expense.error.add'))
@@ -303,6 +327,20 @@ export default function ExpensePage() {
                 ))}
               </select>
             </div>
+            {memberProfiles.length > 1 && (
+              <select
+                value={formPaidBy ?? currentUser?.uid ?? ''}
+                onChange={e => setFormPaidBy(e.target.value)}
+                style={{ ...inputStyle, width: '100%', fontSize: 13, cursor: 'pointer' }}
+              >
+                {memberProfiles.map(m => (
+                  <option key={m.uid} value={m.uid}>
+                    👤 {m.displayName || m.email?.split('@')[0] || t('common.unknown')}
+                    {m.uid === currentUser?.uid ? ` (${t('expense.paidBy.me')})` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
             <input
               value={formNotes} onChange={e => setFormNotes(e.target.value)}
               placeholder={t('expense.field.notes')}
@@ -587,6 +625,8 @@ function ExpenseList({ items, tripId, days = [] }) {
     const date = new Date(d + 'T00:00:00')
     return `${date.getMonth() + 1}/${date.getDate()} ${WD[date.getDay()]}`
   }
+  const WD_ARR = WD
+  const formatDay = (d) => { if (!d) return ''; const dt = new Date(d + 'T00:00:00'); return `${dt.getMonth()+1}/${dt.getDate()} ${WD_ARR[dt.getDay()]}` }
 
   const startEdit = (e) => {
     setEditing(e.id)
@@ -693,7 +733,7 @@ function ExpenseList({ items, tripId, days = [] }) {
                 <div style={{ display: 'flex', gap: 8, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
                   {e.day && (
                     <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)' }}>
-                      📅 {e.day}
+                      📅 {formatDay(e.day)}
                     </span>
                   )}
                   {e.notes && (

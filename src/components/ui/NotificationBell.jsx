@@ -131,9 +131,11 @@ export default function NotificationBell({ isMobile = false }) {
         <div
           ref={panelRef}
           style={{
-            position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-            width: 340, maxWidth: 'calc(100vw - 24px)',
-            maxHeight: 460, overflow: 'hidden',
+            ...(isMobile
+              ? { position: 'fixed', top: 60, right: 12, left: 12, maxHeight: 'calc(100dvh - 80px)' }
+              : { position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 340, maxWidth: 'calc(100vw - 24px)', maxHeight: 460 }
+            ),
+            overflow: 'hidden',
             background: 'rgba(255,252,244,0.99)',
             border: '1.5px solid rgba(165,125,65,0.28)',
             borderRadius: 16,

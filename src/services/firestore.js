@@ -70,15 +70,8 @@ export async function getUserTrips(uid) {
 }
 
 // 建立新旅遊計畫
-export async function createTrip({ name, startDate, endDate, uid }) {
-  let code
-  let exists = true
-
-  while (exists) {
-    code = generateTripCode()
-    const snap = await getDoc(doc(db, 'trips', code))
-    exists = snap.exists()
-  }
+export async function createTrip({ name, startDate, endDate, uid, lang = 'zh' }) {
+  const code = generateTripCode()
 
   await setDoc(doc(db, 'trips', code), {
     name,
@@ -95,7 +88,16 @@ export async function createTrip({ name, startDate, endDate, uid }) {
   }
 
   // 預設打包清單項目
-  const defaultPacking = [
+  const defaultPacking = lang === 'en' ? [
+    { text: 'Passport',      category: 'Documents' },
+    { text: 'Flight tickets', category: 'Documents' },
+    { text: 'SIM / eSIM',   category: 'Electronics' },
+    { text: 'Power bank',   category: 'Electronics' },
+    { text: 'Toiletries',   category: 'Toiletries' },
+    { text: 'Hair dryer',   category: 'Toiletries' },
+    { text: 'Skincare',     category: 'Toiletries' },
+    { text: 'Clothes',      category: 'Clothing' },
+  ] : [
     { text: '護照',     category: '證件' },
     { text: '機票',     category: '證件' },
     { text: 'SIM卡/eSIM', category: '電子' },
@@ -281,6 +283,9 @@ export async function addStorageUsedBytes(tripId, bytes) {
 // actor: { uid, displayName } — 用於發送「trip 已被刪除」通知給其他成員
 export async function deleteTrip(tripId, uid, actor = null) {
   const tripSnap = await getDoc(doc(db, 'trips', tripId))
+  if (tripSnap.exists() && tripSnap.data().ownerId !== uid) {
+    throw new Error('PERMISSION_DENIED')
+  }
   const members = tripSnap.exists() ? (tripSnap.data().members ?? []) : []
   const tripName = tripSnap.exists() ? (tripSnap.data().name ?? '') : ''
 
@@ -296,19 +301,24 @@ export async function deleteTrip(tripId, uid, actor = null) {
     }).catch(() => {})
   }
 
-  const [cardsSnap, todosSnap, packingSnap, expensesSnap] = await Promise.all([
+  // trip doc 先刪：立即阻斷並發的子集合寫入（rules 需要 trip.members 驗證）
+  // 如此即使有成員在刪除過程中新增卡片，那些卡片也無法通過 rules 而被阻擋
+  await deleteDoc(doc(db, 'trips', tripId))
+
+  // 子集合清理：fire-and-forget，孤立文件因 rules 無法被任何人存取，不影響安全性
+  Promise.all([
     getDocs(cardsCol(tripId)),
     getDocs(todosCol(tripId)),
     getDocs(packingCol(tripId)),
     getDocs(collection(db, 'trips', tripId, 'expenses')),
-  ])
-  await Promise.all([
-    ...cardsSnap.docs.map(d => deleteDoc(d.ref)),
-    ...todosSnap.docs.map(d => deleteDoc(d.ref)),
-    ...packingSnap.docs.map(d => deleteDoc(d.ref)),
-    ...expensesSnap.docs.map(d => deleteDoc(d.ref)),
-  ])
-  await deleteDoc(doc(db, 'trips', tripId))
+  ]).then(([cardsSnap, todosSnap, packingSnap, expensesSnap]) =>
+    Promise.all([
+      ...cardsSnap.docs.map(d => deleteDoc(d.ref).catch(() => {})),
+      ...todosSnap.docs.map(d => deleteDoc(d.ref).catch(() => {})),
+      ...packingSnap.docs.map(d => deleteDoc(d.ref).catch(() => {})),
+      ...expensesSnap.docs.map(d => deleteDoc(d.ref).catch(() => {})),
+    ])
+  ).catch(() => {})
 
   // Bug #4：只能清理自己的 tripCodes（Firestore rules 不允許寫其他人的 users doc）
   // 其他成員的 tripCodes 會有殘留，但當他們開啟已刪除的 trip 時會顯示「找不到」，可自行離開
@@ -368,7 +378,7 @@ export async function leaveTrip(tripId, uid, actor = null) {
 }
 
 // ── 教學用模擬計畫 ───────────────────────────
-export async function createDemoTrip(uid) {
+export async function createDemoTrip(uid, lang = 'zh') {
   const today = new Date()
   const dateStr = today.toISOString().split('T')[0]
 
@@ -380,8 +390,10 @@ export async function createDemoTrip(uid) {
     exists = snap.exists()
   }
 
+  const isEn = lang === 'en'
+
   const meta = {
-    name: '✈️ 台北一日遊（教學範例）',
+    name: isEn ? '✈️ Tokyo 1-Day Tour (Tutorial)' : '✈️ 台北一日遊（教學範例）',
     startDate: dateStr,
     endDate: dateStr,
     passwordHash: 'demo',
@@ -393,7 +405,24 @@ export async function createDemoTrip(uid) {
 
   await setDoc(doc(db, 'trips', code), { ...meta, createdAt: serverTimestamp() })
 
-  const cardsData = [
+  const cardsData = isEn ? [
+    // Senso-ji at 08:00–08:30 → drag tutorial highlight card; 08:30–10:30 left empty as drag target
+    { type: 'attraction', title: 'Senso-ji Temple', startTime: '08:00', duration: 30,
+      address: '2 Chome-3-1 Asakusa, Taito City, Tokyo', lat: 35.7148, lng: 139.7967 },
+    { type: 'transport', title: 'Airport Express → Shinjuku Station', startTime: '10:30', duration: 60,
+      from: 'Narita International Airport', to: 'Shinjuku Station', mode: 'transit',
+      address: 'Shinjuku, Tokyo', lat: 35.6896, lng: 139.7006 },
+    { type: 'restaurant', title: 'Ichiran Ramen (Shinjuku)', startTime: '12:30', duration: 75,
+      address: 'Kabukicho, Shinjuku City, Tokyo', lat: 35.6951, lng: 139.7037 },
+    { type: 'attraction', title: 'Tokyo Skytree Observatory', startTime: '14:30', duration: 120,
+      address: '1 Chome-1-2 Oshiage, Sumida City, Tokyo', lat: 35.7101, lng: 139.8107 },
+    { type: 'attraction', title: 'Shibuya Crossing (Golden Hour)', startTime: '17:00', duration: 90,
+      address: 'Dogenzaka, Shibuya City, Tokyo', lat: 35.6595, lng: 139.7004 },
+    { type: 'accommodation', title: 'Hotel Gracery Shinjuku Check-in', startTime: '19:30', duration: 30,
+      address: 'Kabukicho, Shinjuku City, Tokyo', lat: 35.6951, lng: 139.7040 },
+    { type: 'expense', title: 'Transport + Entrance Fees', startTime: '20:00', duration: 0,
+      amount: 3500, currency: 'JPY', expenseCategory: 'transport' },
+  ] : [
     // 龍山寺在 08:00–08:30 → 拖曳教學的高亮卡片；08:30–10:30 留空作為拖曳目標
     { type: 'attraction', title: '龍山寺', startTime: '08:00', duration: 30,
       address: '台北市萬華區廣州街211號', lat: 25.0373, lng: 121.4999,
@@ -416,13 +445,23 @@ export async function createDemoTrip(uid) {
       amount: 850, currency: 'TWD', expenseCategory: 'transport' },
   ]
 
-  const todosData = [
+  const todosData = isEn ? [
+    { title: 'Apply for travel insurance', checked: false },
+    { title: 'Reserve restaurant (book in advance)', checked: true },
+    { title: 'Check Skytree ticket prices', checked: false },
+  ] : [
     { title: '申請旅行保險', checked: false },
     { title: '預約鼎泰豐（建議提前）', checked: true },
     { title: '查詢台北101門票優惠', checked: false },
   ]
 
-  const packingData = [
+  const packingData = isEn ? [
+    { title: 'Passport', category: 'Documents', checked: true },
+    { title: 'IC Card / Credit Card', category: 'Wallet', checked: false },
+    { title: 'Charger + Power bank', category: 'Electronics', checked: false },
+    { title: 'Sunscreen', category: 'Toiletries', checked: false },
+    { title: 'Comfortable walking shoes', category: 'Clothing', checked: true },
+  ] : [
     { title: '護照', category: '證件', checked: true },
     { title: '悠遊卡 / 信用卡', category: '錢包', checked: false },
     { title: '充電器 + 行動電源', category: '電子', checked: false },
@@ -441,19 +480,20 @@ export async function createDemoTrip(uid) {
 
 export async function deleteDemoTrip(tripId) {
   try {
-    const [cardsSnap, todosSnap, packingSnap, expensesSnap] = await Promise.all([
+    await deleteDoc(doc(db, 'trips', tripId))
+    Promise.all([
       getDocs(collection(db, 'trips', tripId, 'cards')),
       getDocs(collection(db, 'trips', tripId, 'todos')),
       getDocs(collection(db, 'trips', tripId, 'packing')),
       getDocs(collection(db, 'trips', tripId, 'expenses')),
-    ])
-    await Promise.all([
-      ...cardsSnap.docs.map(d => deleteDoc(d.ref)),
-      ...todosSnap.docs.map(d => deleteDoc(d.ref)),
-      ...packingSnap.docs.map(d => deleteDoc(d.ref)),
-      ...expensesSnap.docs.map(d => deleteDoc(d.ref)),
-    ])
-    await deleteDoc(doc(db, 'trips', tripId))
+    ]).then(([cardsSnap, todosSnap, packingSnap, expensesSnap]) =>
+      Promise.all([
+        ...cardsSnap.docs.map(d => deleteDoc(d.ref).catch(() => {})),
+        ...todosSnap.docs.map(d => deleteDoc(d.ref).catch(() => {})),
+        ...packingSnap.docs.map(d => deleteDoc(d.ref).catch(() => {})),
+        ...expensesSnap.docs.map(d => deleteDoc(d.ref).catch(() => {})),
+      ])
+    ).catch(() => {})
   } catch { /* already deleted or doesn't exist */ }
 }
 

@@ -1,7 +1,8 @@
-// interactive: true → user must click the highlighted element to advance (no "繼續" button)
-// interactive: false → informational step, shows "繼續" button
+// interactive: true → user must click the highlighted element to advance (no "Next" button)
+// interactive: false → informational step, shows "Next" button
 // actionHint: shown in the interactive/drag CTA area — use specific element names
-export const TUTORIAL_STEPS = [
+
+const STEPS_ZH = [
   {
     id: 'welcome',
     targetId: null,
@@ -106,7 +107,7 @@ export const TUTORIAL_STEPS = [
     id: 'packing',
     targetId: 'packing-btn',
     title: '打包清單 🎒',
-    body: '「打包」清單幫你確認行李是否帶齊！按類別整理物品，出發前逐一勾選，再也不怕忘東忘西。',
+    body: '「打包」清單幫你確認行李是否帶齊！逐一勾選確保行李齊全，再也不怕忘東忘西。',
     interactive: false,
     navHint: '請先進入教學範例計劃',
   },
@@ -143,3 +144,153 @@ export const TUTORIAL_STEPS = [
     finish: true,
   },
 ]
+
+const STEPS_EN = [
+  {
+    id: 'welcome',
+    targetId: null,
+    title: 'Welcome to TripTogether! ✈️',
+    body: 'Hi! I\'m your travel guide. I\'ll walk you through all the features using a "Tokyo 1-Day Tour" demo trip — learn by doing!',
+    interactive: false,
+  },
+  {
+    id: 'create-trip',
+    targetId: 'create-trip-btn',
+    title: 'Create a Trip',
+    body: 'Tap "+ Create Trip" to start your first journey! Set a trip name, start and end dates, and a join code for friends.\n\nSample cards are added automatically so you can explore all features!',
+    interactive: false,
+    navHint: 'Please go back to the Home page first',
+  },
+  {
+    id: 'join-trip',
+    targetId: 'join-trip-btn',
+    title: 'Join a Friend\'s Trip',
+    body: 'Have a trip code? Enter it to join a shared trip. Everyone sees edits in real time — no more messy group chats!',
+    interactive: false,
+    navHint: 'Please go back to the Home page first',
+  },
+  {
+    id: 'trip-card',
+    targetId: 'first-trip-card',
+    title: 'Open the Trip Board 👆',
+    body: 'This is the "Tokyo 1-Day Tour (Tutorial)" demo trip. Tap the card to enter the trip board and explore all features!',
+    interactive: true,
+    actionHint: '👆 Tap the "Tokyo 1-Day Tour (Tutorial)" trip card',
+    navHint: 'Please go back to the Home page and tap the demo trip card',
+  },
+  {
+    id: 'board-overview',
+    targetId: 'overview-tab',
+    title: 'Overview Tab 👆',
+    body: 'The "Overview" tab shows the day map, live weather, and a summary of all your cards — everything at a glance!\n\nTap "Overview" to switch to the overview screen.',
+    interactive: true,
+    actionHint: '👆 Tap the "Overview" tab',
+    navHint: 'Please enter the demo trip first',
+  },
+  {
+    id: 'day-map',
+    targetId: 'day-map-section',
+    title: 'Day Route Map 🗺️',
+    body: 'Cards with a location show up on this map, connected by arrows to form your complete daily route!',
+    interactive: false,
+    navHint: 'Please open the Overview tab of the demo trip',
+  },
+  {
+    id: 'weather',
+    targetId: 'weather-pill',
+    title: 'Live Weather ⛅',
+    body: 'Weather is fetched automatically based on your trip location. Temperature, wind, and conditions — all in one pill!',
+    interactive: false,
+    navHint: 'Please open the Overview tab of the demo trip',
+  },
+  {
+    id: 'day-tab',
+    targetId: 'day-1-tab',
+    title: 'Day Timeline 👆',
+    body: 'Tap a date tab to switch to the single-day view! The timeline shows all cards for that day in chronological order.',
+    interactive: true,
+    actionHint: '👆 Tap the "Day 1" date tab',
+    navHint: 'Please enter the demo trip first',
+  },
+  {
+    id: 'add-card',
+    targetId: 'add-card-fab',
+    title: 'Add Cards ＋',
+    body: 'Tap the "＋" button to add a new card! Supports attractions, restaurants, accommodation, transport, and expenses.\n\n📎 Transport cards support ticket attachments!\n🔍 Place search auto-fills address and coordinates.',
+    interactive: false,
+    navHint: 'Please switch to the single-day view first',
+  },
+  {
+    id: 'drag-drop',
+    targetId: 'drag-card',
+    title: 'Drag to Reschedule ✋',
+    body: 'Long-press the left handle of the highlighted card, then drag it to a different time slot to reschedule!',
+    interactive: false,
+    requireDrag: true,
+    actionHint: 'Long-press the card to drag it to a new time slot',
+    navHint: 'Please tap a date tab to switch to the single-day view first',
+  },
+  {
+    id: 'export-pdf',
+    targetId: 'export-pdf-btn',
+    title: 'Export PDF 📄',
+    body: '"Export PDF" in the Settings menu generates a full itinerary PDF — perfect for offline viewing, printing, or sharing!',
+    interactive: false,
+    navHint: 'This feature is inside the Settings menu',
+  },
+  {
+    id: 'todo',
+    targetId: 'todo-btn',
+    title: 'To-Do List ✅',
+    body: '"To-Do" helps you manage pre-trip tasks. Check them off to track your progress!',
+    interactive: false,
+    navHint: 'Please enter the demo trip first',
+  },
+  {
+    id: 'packing',
+    targetId: 'packing-btn',
+    title: 'Packing List 🎒',
+    body: 'The packing list ensures you never forget anything! Check them off before departure.',
+    interactive: false,
+    navHint: 'Please enter the demo trip first',
+  },
+  {
+    id: 'expense',
+    targetId: 'expense-btn',
+    title: 'Expense Tracking 💰',
+    body: '"Expenses" shows all spending details!\n\nAdd expense cards for tickets, meals, transport, and more — choose any currency. The app tallies totals per currency and includes expenses in your PDF export.',
+    interactive: false,
+    navHint: 'Please enter the demo trip first',
+  },
+  {
+    id: 'invite-friends',
+    targetId: 'settings-btn',
+    title: 'Invite Friends 👥',
+    body: 'Real-time collaboration is TripTogether\'s core feature!\n\nTap "⚙️ Settings" → "🔗 Invite" to see the trip code.\n\nShare it with friends — everyone\'s additions, edits, and deletions appear instantly for all members!',
+    interactive: false,
+    navHint: 'Please enter the demo trip first',
+  },
+  {
+    id: 'settings-btn',
+    targetId: 'settings-btn',
+    title: 'Trip Settings ⚙️',
+    body: 'Settings also lets you edit the trip name and dates, and view all members.\n\nWant to replay the tutorial later? You can restart it from here anytime!',
+    interactive: false,
+    navHint: 'Please enter the demo trip first',
+  },
+  {
+    id: 'complete',
+    targetId: null,
+    title: '🎉 Tutorial Complete!',
+    body: 'Awesome! You now know all the core features. The demo trip will disappear automatically — time to plan your own adventure!\n\nWant a refresher? Restart the tutorial anytime from Trip Settings.',
+    interactive: false,
+    finish: true,
+  },
+]
+
+export function getTutorialSteps(lang) {
+  return lang === 'en' ? STEPS_EN : STEPS_ZH
+}
+
+// Legacy export for components that only need the count
+export const TUTORIAL_STEPS = STEPS_ZH

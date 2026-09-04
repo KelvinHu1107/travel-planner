@@ -138,15 +138,18 @@ function AppRoutes() {
 export default function App() {
   return (
     <LiffInitializer>
-    <Sentry.ErrorBoundary fallback={
+    <Sentry.ErrorBoundary fallback={({ error }) => (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 24 }}>
         <div style={{ fontSize: 52 }}>⚠️</div>
         <p style={{ fontSize: 16, fontWeight: 900, color: '#92400E' }}>發生錯誤，請重新整理頁面</p>
+        <div style={{ fontSize: 12, color: '#92400E', background: 'rgba(146,64,14,0.08)', border: '1px solid rgba(146,64,14,0.2)', borderRadius: 8, padding: '8px 12px', maxWidth: 320, wordBreak: 'break-all', textAlign: 'left' }}>
+          {String(error)}
+        </div>
         <button onClick={() => window.location.reload()} style={{ padding: '10px 24px', borderRadius: 10, background: '#B45309', color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
           重新整理
         </button>
       </div>
-    }>
+    )}>
       <BrowserRouter>
         <LanguageProvider>
           <ViewModeProvider>

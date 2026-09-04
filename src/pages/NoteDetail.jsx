@@ -191,7 +191,7 @@ export default function NoteDetail() {
       } catch (err) {
         // Bug #23：save 失敗時顯示錯誤，讓使用者知道未儲存
         setSaveError(t('note.saveError') + (err?.message || t('error.checkNetwork')))
-        localDirtyRef.current = { title: false, content: false }
+        // 保持 dirty = true，讓遠端 snapshot 不覆蓋未成功儲存的內容
       } finally {
         setSaving(false)
       }

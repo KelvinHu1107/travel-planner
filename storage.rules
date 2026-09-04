@@ -13,8 +13,7 @@ service firebase.storage {
         && request.resource.size < 100 * 1024 * 1024
         && (request.resource.contentType.matches('image/.*') ||
             request.resource.contentType == 'application/pdf' ||
-            request.resource.contentType.matches('text/.*') ||
-            request.resource.contentType == 'application/zip')
+            request.resource.contentType.matches('text/.*'))
         && (
           request.auth.uid in firestore.get(
             /databases/(default)/documents/trips/$(tripId)

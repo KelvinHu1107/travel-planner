@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { subscribeToExpenses, getMemberProfiles, updateExpenseIncluded } from '../services/firestore'
@@ -45,8 +45,8 @@ function calculateSettlement(expenses, targetCurrency, memberProfiles = [], unkn
   })
 
   expenses.forEach(e => {
-    const uid = e.createdBy?.uid || 'unknown'
-    const name = e.createdBy?.displayName || unknownLabel
+    const uid = (e.paidBy?.uid || e.createdBy?.uid) || 'unknown'
+    const name = (e.paidBy?.displayName || e.createdBy?.displayName) || unknownLabel
     if (!userMap[uid]) userMap[uid] = { uid, name, spent: 0 }
     userMap[uid].spent += convertAmount(e.amount, e.currency, targetCurrency)
   })
@@ -102,14 +102,18 @@ export default function SettlementPage() {
     return () => unsub()
   }, [tripId, navigate])
 
+  const membersKeyRef = useRef('')
   useEffect(() => {
     const unsubTrip = onSnapshot(doc(db, 'trips', tripId), snap => {
       if (!snap.exists()) return
       const members = snap.data().members ?? []
-      if (members.length) getMemberProfiles(members, t('settlement.unknown')).then(setMemberProfiles)
+      const key = members.slice().sort().join(',')
+      if (!members.length || key === membersKeyRef.current) return
+      membersKeyRef.current = key
+      getMemberProfiles(members, t('settlement.unknown')).then(setMemberProfiles)
     }, () => {})
     return () => unsubTrip()
-  }, [tripId])
+  }, [tripId, t])
 
   const isChecked = (e) => e.included !== false
   const selectedExpenses = expenses.filter(isChecked)

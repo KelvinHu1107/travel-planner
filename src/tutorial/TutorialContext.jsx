@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
-import { TUTORIAL_STEPS } from './steps'
+import { getTutorialSteps } from './steps'
 import { createDemoTrip, deleteDemoTrip } from '../services/firestore'
 import { useAuth } from '../contexts/AuthContext'
+import { useLanguage } from '../i18n/LanguageContext'
 
 const TutorialContext = createContext(null)
 
@@ -29,11 +30,20 @@ function saveStateForUser(s, uid) {
   try { localStorage.setItem(key, JSON.stringify(s)) } catch {}
 }
 
+function getDemoTripName(lang) {
+  return lang === 'en' ? '✈️ Tokyo 1-Day Tour (Tutorial)' : '✈️ 台北一日遊（教學範例）'
+}
+
 export function TutorialProvider({ children }) {
   const { currentUser } = useAuth()
+  const { lang } = useLanguage()
   const [state, setState] = useState(DEFAULT_STATE)
   const [demoTripData, setDemoTripData] = useState(null)
   const uidRef = useRef(null)
+  const langRef = useRef(lang)
+
+  // Keep langRef up to date for use in callbacks
+  useEffect(() => { langRef.current = lang }, [lang])
 
   // Re-load tutorial state whenever the logged-in user changes
   useEffect(() => {
@@ -48,7 +58,7 @@ export function TutorialProvider({ children }) {
     if (uid && loaded.demoTripId && loaded.active) {
       setDemoTripData({
         code: loaded.demoTripId,
-        name: '✈️ 台北一日遊（教學範例）',
+        name: getDemoTripName(langRef.current),
         startDate: new Date().toISOString().split('T')[0],
         endDate:   new Date().toISOString().split('T')[0],
         isDemoTrip: true,
@@ -88,7 +98,7 @@ export function TutorialProvider({ children }) {
     persist({ active: true, step: 0, seen: true, demoTripId: null })
 
     try {
-      const { code, meta } = await createDemoTrip(currentUser.uid)
+      const { code, meta } = await createDemoTrip(currentUser.uid, langRef.current)
       const tripData = { code, ...meta }
       setDemoTripData(tripData)
       persist({ demoTripId: code })
@@ -99,8 +109,9 @@ export function TutorialProvider({ children }) {
 
   const nextStep = useCallback(() => {
     setState(prev => {
+      const steps = getTutorialSteps(langRef.current)
       const next = prev.step + 1
-      if (next >= TUTORIAL_STEPS.length) {
+      if (next >= steps.length) {
         if (prev.demoTripId) deleteDemoTrip(prev.demoTripId).catch(() => {})
         const updated = { ...prev, active: false, completed: true, seen: true, demoTripId: null }
         saveStateForUser(updated, uidRef.current)
@@ -123,7 +134,7 @@ export function TutorialProvider({ children }) {
     persist({ active: true, step: 0, completed: false, seen: true, demoTripId: null })
     setDemoTripData(null)
     try {
-      const { code, meta } = await createDemoTrip(currentUser.uid)
+      const { code, meta } = await createDemoTrip(currentUser.uid, langRef.current)
       setDemoTripData({ code, ...meta })
       persist({ demoTripId: code })
     } catch {}
@@ -133,14 +144,17 @@ export function TutorialProvider({ children }) {
     persist({ seen: true })
   }, [persist])
 
+  const steps = getTutorialSteps(lang)
+
   return (
     <TutorialContext.Provider value={{
       tutorialActive:    state.active,
       tutorialStep:      state.step,
       tutorialCompleted: state.completed,
       tutorialSeen:      state.seen,
-      currentStepData:   TUTORIAL_STEPS[state.step] ?? null,
-      totalSteps:        TUTORIAL_STEPS.length,
+      currentStepData:   steps[state.step] ?? null,
+      totalSteps:        steps.length,
+      steps,
       demoTripId:        state.demoTripId,
       demoTripData,
       startTutorial,
