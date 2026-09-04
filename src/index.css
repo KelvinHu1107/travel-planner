@@ -575,9 +575,9 @@ button:not(.btn-game):not([disabled]):active {
 
 /* ── 手繪風 Body ─────────────────────────────── */
 [data-theme="handdrawn"] body {
-  font-family: 'Klee One', 'Ma Shan Zheng', 'PingFang TC', 'Noto Sans TC',
+  font-family: 'Zen Maru Gothic', 'M PLUS Rounded 1c', 'PingFang TC', 'Noto Sans TC',
     'Microsoft JhengHei', sans-serif;
-  font-weight: 400;
+  font-weight: 700;
   background-color: var(--bg-base);
   background-image:
     /* 斜向鉛筆紋理 */
@@ -761,7 +761,7 @@ button:not(.btn-game):not([disabled]):active {
 [data-theme="handdrawn"] h1,
 [data-theme="handdrawn"] h2,
 [data-theme="handdrawn"] h3 {
-  font-family: 'Klee One', 'Ma Shan Zheng', 'PingFang TC', sans-serif;
+  font-family: 'Zen Maru Gothic', 'M PLUS Rounded 1c', 'PingFang TC', sans-serif;
   letter-spacing: 0.5px;
 }
 
@@ -770,4 +770,59 @@ button:not(.btn-game):not([disabled]):active {
   background: rgba(27, 56, 136, 0.25);
   color: var(--text-primary);
 }
+
+/* ── CalendarPicker popup ─────────────────────── */
+.calendar-popup {
+  background: var(--bg-card, #fff);
+  border-radius: 14px;
+  padding: 14px 12px 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08);
+  border: 1.5px solid var(--border-color, rgba(0,0,0,0.1));
+}
+
+.cal-nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  border-radius: 8px;
+  opacity: 0.65;
+  transition: opacity 0.12s, background 0.12s;
+}
+.cal-nav-btn:hover { opacity: 1; background: rgba(0,0,0,0.06); }
+
+.cal-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  font-size: 13px;
+  font-weight: 400;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s;
+  color: inherit;
+}
+.cal-day:not(.cal-day-disabled):hover { background: rgba(92,143,214,0.15); }
+.cal-day-today { border-color: var(--accent, #5c8fd6); font-weight: 700; }
+.cal-day-sel { background: var(--accent, #5c8fd6); color: #fff; font-weight: 700; border-color: transparent; }
+.cal-day-sel:hover { background: var(--accent, #5c8fd6); }
+.cal-day-disabled { opacity: 0.28; cursor: default; pointer-events: none; }
+
+/* Handdrawn overrides */
+[data-theme="handdrawn"] .calendar-popup {
+  background: var(--bg-card);
+  border: 2px solid rgba(40, 18, 5, 0.5);
+  border-radius: 6px 18px 10px 16px / 14px 6px 18px 8px;
+  box-shadow: 4px 5px 0 rgba(40, 18, 5, 0.1), 0 6px 24px rgba(40,18,5,0.12);
+}
+[data-theme="handdrawn"] .cal-day-today { border-color: #1B3888; }
+[data-theme="handdrawn"] .cal-day-sel { background: #1B3888; }
+[data-theme="handdrawn"] .cal-day-sel:hover { background: #1B3888; }
+[data-theme="handdrawn"] .cal-day:not(.cal-day-disabled):hover { background: rgba(27,56,136,0.12); }
 

@@ -10,7 +10,7 @@ import { getTripDuration, getLocalDateStr } from '../utils/dateUtils'
 import { useTutorial } from '../tutorial/TutorialContext'
 import { useLanguage } from '../i18n/LanguageContext'
 import ThemeSwitcher from '../components/ui/ThemeSwitcher'
-import DatePicker from '../components/ui/DatePicker'
+import CalendarPicker from '../components/ui/CalendarPicker'
 
 // 判斷 trip 是否超過 30 天未瀏覽（Bug #13）
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
@@ -302,7 +302,7 @@ function CreateModal({ uid, onClose, onCreated }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ overflow: 'hidden', minWidth: 0 }}>
               <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('create.label.start')}</label>
-              <DatePicker
+              <CalendarPicker
                 value={form.startDate}
                 min={getLocalDateStr()}
                 disabled={loading}
@@ -315,7 +315,7 @@ function CreateModal({ uid, onClose, onCreated }) {
             </div>
             <div style={{ overflow: 'hidden', minWidth: 0 }}>
               <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('create.label.end')}</label>
-              <DatePicker
+              <CalendarPicker
                 value={form.endDate}
                 min={form.startDate || getLocalDateStr()}
                 disabled={loading}
