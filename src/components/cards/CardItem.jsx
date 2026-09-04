@@ -3,19 +3,19 @@ import { useDraggable } from '@dnd-kit/core'
 import { SLOT_HEIGHT, START_HOUR } from '../board/boardConstants'
 import { Trash2, Clock, Map, Image, FileText as FileTextIcon } from 'lucide-react'
 import {
-  Compass, AirplaneTilt, Receipt,
   AirplaneTakeoff, Car, Train, PersonSimpleWalk, Boat,
-  ForkKnife, Bus, Bed, ShoppingBag, Ticket, Package,
+  Bus, ShoppingBag, Ticket, Package,
 } from '@phosphor-icons/react'
+import { HdCompass, HdForkKnife, HdBed, HdAirplane } from '../ui/HanddrawnIcons'
 
 const IS_TOUCH = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0
 
 // 分裂互補配色對應淺色沙底背景
 export const CATEGORY = {
-  attraction:    { icon: '📍', IconComp: Compass,     label: '景點',  color: '#C2410C', bg: 'rgba(194,65,12,0.07)',  border: 'rgba(194,65,12,0.28)'  },
-  restaurant:    { icon: '🍽️', IconComp: ForkKnife,   label: '餐廳',  color: '#B45309', bg: 'rgba(180,83,9,0.07)',   border: 'rgba(180,83,9,0.28)'   },
-  accommodation: { icon: '🏨', IconComp: Bed,          label: '住宿',  color: '#1D4ED8', bg: 'rgba(29,78,216,0.07)',  border: 'rgba(29,78,216,0.28)'  },
-  transport:     { icon: '🚌', IconComp: AirplaneTilt, label: '交通',  color: '#0F766E', bg: 'rgba(15,118,110,0.07)', border: 'rgba(15,118,110,0.28)' },
+  attraction:    { icon: '📍', IconComp: HdCompass,   label: '景點',  color: '#C2410C', bg: 'rgba(194,65,12,0.07)',  border: 'rgba(194,65,12,0.28)'  },
+  restaurant:    { icon: '🍽️', IconComp: HdForkKnife, label: '餐廳',  color: '#B45309', bg: 'rgba(180,83,9,0.07)',   border: 'rgba(180,83,9,0.28)'   },
+  accommodation: { icon: '🏨', IconComp: HdBed,        label: '住宿',  color: '#1D4ED8', bg: 'rgba(29,78,216,0.07)',  border: 'rgba(29,78,216,0.28)'  },
+  transport:     { icon: '🚌', IconComp: HdAirplane,   label: '交通',  color: '#0F766E', bg: 'rgba(15,118,110,0.07)', border: 'rgba(15,118,110,0.28)' },
 }
 
 const PLACE_TYPES = new Set(['attraction', 'restaurant', 'accommodation'])
@@ -30,9 +30,9 @@ const TRANSPORT_ICON_COMP = {
 const TRANSPORT_ICON  = { flight:'✈️', car:'🚗', transit:'🚇', walk:'🚶', boat:'⛴️' }
 
 const EXPENSE_CAT_ICON_COMP = {
-  food:          ForkKnife,
+  food:          HdForkKnife,
   transport:     Bus,
-  accommodation: Bed,
+  accommodation: HdBed,
   shopping:      ShoppingBag,
   ticket:        Ticket,
   other:         Package,
