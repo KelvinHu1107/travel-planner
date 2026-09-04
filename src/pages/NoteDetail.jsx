@@ -4,7 +4,7 @@ import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import { updateCard } from '../services/firestore'
 import FormatToolbar from '../components/ui/FormatToolbar'
-import { ArrowLeft, CircleCheck, Pencil, Eye, Clock, CalendarDays, FileText, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, CircleCheck, Pencil, Eye, Clock, CalendarDays, AlertTriangle } from 'lucide-react'
 import { NotePencil } from '@phosphor-icons/react'
 import { useViewMode } from '../contexts/ViewModeContext'
 import { useLanguage } from '../i18n/LanguageContext'
@@ -27,7 +27,7 @@ function renderInline(text) {
 function MarkdownView({ content, onToggleCheckbox, t }) {
   if (!content?.trim()) return (
     <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 15, padding: '40px 0', textAlign: 'center' }}>
-      <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><Pencil size={40} color="var(--text-muted)" /></div>
+      <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><img src="https://loosedrawing.com/assets/media/illustrations/png/1772.png" alt="" style={{ width: 72, objectFit: 'contain' }} /></div>
       {t('note.switchToEdit')}
     </div>
   )
@@ -220,14 +220,14 @@ export default function NoteDetail() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'center' }}><FileText size={48} color="var(--text-muted)" /></div>
+      <div style={{ display: 'flex', justifyContent: 'center' }}><img src="https://loosedrawing.com/assets/media/illustrations/png/933.png" alt="" style={{ width: 90, objectFit: 'contain' }} /></div>
       <p style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-secondary)' }}>{t('common.loading')}</p>
     </div>
   )
 
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20, padding: 32 }}>
-      <div style={{ fontSize: 48 }}>😢</div>
+      <div style={{ display: 'flex', justifyContent: 'center' }}><img src="https://loosedrawing.com/assets/media/illustrations/png/1959.png" alt="" style={{ width: 90, objectFit: 'contain' }} /></div>
       <p style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-primary)' }}>{t('note.error')}</p>
       <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>{error}</p>
       <button className="btn-game btn-primary" style={{ padding: '12px 28px' }} onClick={() => navigate(`/trip/${tripId}`)}>{t('note.back')}</button>
