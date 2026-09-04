@@ -23,6 +23,9 @@ import {
   Key, Users, User, Info, AlertTriangle, Frown,
 } from 'lucide-react'
 import { CopyLinkButton, FullscreenButton } from '../components/ui/TopBarActions'
+import ThemeSwitcher from '../components/ui/ThemeSwitcher'
+import { useTheme } from '../contexts/ThemeContext'
+import DatePicker from '../components/ui/DatePicker'
 import NotificationBell from '../components/ui/NotificationBell'
 
 // Bug #31：PDF/HTML escape helper
@@ -55,6 +58,45 @@ function makeSeedCards(firstDay, t) {
     { type: 'attraction', day: firstDay, startTime: '14:30', duration: 120,
       title: t('sample.accommodation.title'), address: t('sample.accommodation.address'), lat: null, lng: null },
   ]
+}
+
+// ── 外觀風格選擇器（設定 Modal 內用）────────────
+function ThemeSwitcherSection({ t }) {
+  const { theme, setTheme } = useTheme()
+  const themes = [
+    { id: 'handdrawn', label: t('settings.about.theme.handdrawn'), icon: '✏️', desc: t('settings.about.theme.handdrawn.desc') },
+    { id: 'cute',      label: t('settings.about.theme.cute'),      icon: '✨', desc: t('settings.about.theme.cute.desc') },
+  ]
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <p style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+        {t('settings.about.theme')}
+      </p>
+      <div style={{ display: 'flex', gap: 10 }}>
+        {themes.map(th => (
+          <button
+            key={th.id}
+            onClick={() => setTheme(th.id)}
+            style={{
+              flex: 1, padding: '14px 12px', borderRadius: 16, cursor: 'pointer',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+              border: theme === th.id ? '2px solid var(--accent)' : '1.5px solid var(--border)',
+              background: theme === th.id ? 'var(--accent-glow)' : 'var(--bg-surface)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span style={{ fontSize: 24 }}>{th.icon}</span>
+            <span style={{ fontSize: 13, fontWeight: 900, color: theme === th.id ? 'var(--accent)' : 'var(--text-secondary)' }}>
+              {th.label}
+            </span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4 }}>
+              {th.desc}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // ── 設定 Modal ───────────────────────────────
@@ -370,22 +412,22 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
                     onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
                     onBlur={handleNameBlur} />
                 </div>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div>
                     <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>{t('settings.trip.start')}</label>
-                    <input className="game-input" type="date" value={editForm.startDate}
-                      onChange={e => handleDateChange('startDate', e.target.value)} />
+                    <DatePicker
+                      value={editForm.startDate}
+                      min={new Date().toISOString().split('T')[0]}
+                      onChange={v => handleDateChange('startDate', v)}
+                    />
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div>
                     <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>{t('settings.trip.end')}</label>
-                    {(() => {
-                      const endMax = editForm.startDate ? (() => { const d = new Date(editForm.startDate + 'T00:00:00'); d.setDate(d.getDate() + 59); return d.toISOString().split('T')[0] })() : undefined
-                      return (
-                        <input className="game-input" type="date" value={editForm.endDate}
-                          max={endMax}
-                          onChange={e => handleDateChange('endDate', e.target.value)} />
-                      )
-                    })()}
+                    <DatePicker
+                      value={editForm.endDate}
+                      min={editForm.startDate || new Date().toISOString().split('T')[0]}
+                      onChange={v => handleDateChange('endDate', v)}
+                    />
                   </div>
                 </div>
                 {/* Bug #11：卡片會被移動的確認 */}
@@ -626,6 +668,9 @@ function SettingsModal({ trip, tripId, onClose, onBgChange, onTripUpdate, isMobi
 
             {/* ── 關於 Tab ── */}
             {tab === 'about' && (<>
+
+              {/* 外觀風格切換 */}
+              <ThemeSwitcherSection t={t} />
 
               {/* App 身份識別 */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '4px 0 8px' }}>

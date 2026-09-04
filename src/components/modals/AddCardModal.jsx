@@ -523,27 +523,31 @@ function DetailsStep({ category, defaultDay, defaultTime, editCard, tripId, exis
 
         {/* 時間 + 時長 */}
         <div style={{ display: 'flex', gap: 12 }}>
-          <Field label={t('addCard.field.startTime')}>
-            <input
-              className="game-input"
-              type="time"
-              value={form.startTime}
-              onChange={e => { set('startTime', e.target.value); setOverlapError('') }}
-              style={{ minWidth: 0 }}
-            />
-          </Field>
-          <Field label={t('addCard.field.tripDuration')}>
-            <select
-              className="game-input"
-              value={form.duration}
-              onChange={e => { set('duration', Number(e.target.value)); setOverlapError('') }}
-              style={{ minWidth: 0 }}
-            >
-              {DURATION_VALUES.map(v => (
-                <option key={v} value={v}>{getDurationLabel(v, t)}</option>
-              ))}
-            </select>
-          </Field>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Field label={t('addCard.field.startTime')}>
+              <input
+                className="game-input"
+                type="time"
+                value={form.startTime}
+                onChange={e => { set('startTime', e.target.value); setOverlapError('') }}
+                style={{ width: '100%', minWidth: 0 }}
+              />
+            </Field>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Field label={t('addCard.field.tripDuration')}>
+              <select
+                className="game-input"
+                value={form.duration}
+                onChange={e => { set('duration', Number(e.target.value)); setOverlapError('') }}
+                style={{ width: '100%', minWidth: 0 }}
+              >
+                {DURATION_VALUES.map(v => (
+                  <option key={v} value={v}>{getDurationLabel(v, t)}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
         </div>
         {overlapError && (
           <div style={{

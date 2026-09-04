@@ -398,7 +398,7 @@ export default function ExpensePage() {
         {/* 空狀態 */}
         {totalItems === 0 && (
           <div style={{ textAlign: 'center', padding: '70px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-            <div style={{ fontSize: 56 }}>💸</div>
+            <img src="https://loosedrawing.com/assets/media/illustrations/png/9.png" alt="" style={{ width: 130, height: 130, objectFit: 'contain', opacity: 0.85 }} />
             <p style={{ fontSize: 17, fontWeight: 900, color: 'var(--text-secondary)' }}>{t('expense.empty')}</p>
             <p style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>{t('expense.empty.hint')}</p>
           </div>

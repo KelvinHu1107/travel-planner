@@ -9,6 +9,8 @@ import { createTrip, joinTrip, getUserTrips, deleteTrip, leaveTrip, addCard, cle
 import { getTripDuration, getLocalDateStr } from '../utils/dateUtils'
 import { useTutorial } from '../tutorial/TutorialContext'
 import { useLanguage } from '../i18n/LanguageContext'
+import ThemeSwitcher from '../components/ui/ThemeSwitcher'
+import DatePicker from '../components/ui/DatePicker'
 
 // 判斷 trip 是否超過 30 天未瀏覽（Bug #13）
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
@@ -300,11 +302,25 @@ function CreateModal({ uid, onClose, onCreated }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ overflow: 'hidden', minWidth: 0 }}>
               <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('create.label.start')}</label>
-              <input className="game-input" type="date" value={form.startDate} min={getLocalDateStr()} onChange={e => setForm({...form, startDate: e.target.value})} disabled={loading} required style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', minWidth: 0, fontSize: 13, padding: '10px 12px' }} />
+              <DatePicker
+                value={form.startDate}
+                min={getLocalDateStr()}
+                disabled={loading}
+                onChange={v => setForm(prev => ({
+                  ...prev,
+                  startDate: v,
+                  endDate: prev.endDate && prev.endDate < v ? v : prev.endDate,
+                }))}
+              />
             </div>
             <div style={{ overflow: 'hidden', minWidth: 0 }}>
               <label style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: 7 }}>{t('create.label.end')}</label>
-              <input className="game-input" type="date" value={form.endDate} min={form.startDate || getLocalDateStr()} onChange={e => setForm({...form, endDate: e.target.value})} disabled={loading} required style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', minWidth: 0, fontSize: 13, padding: '10px 12px' }} />
+              <DatePicker
+                value={form.endDate}
+                min={form.startDate || getLocalDateStr()}
+                disabled={loading}
+                onChange={v => setForm(prev => ({ ...prev, endDate: v }))}
+              />
             </div>
           </div>
           <div style={{ padding: '9px 12px', borderRadius: 11,
@@ -595,6 +611,7 @@ export default function Home() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobileMode ? 8 : 12 }}>
+          <ThemeSwitcher />
           <ModeToggleBtn />
           {isMobileMode ? (
             <>
@@ -816,7 +833,9 @@ export default function Home() {
           </div>
         ) : displayTrips.length === 0 ? (
           <div className="glass-card" style={{ padding: isMobileMode ? '40px 24px' : '60px 40px', textAlign: 'center', borderRadius: 28 }}>
-            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}><Map size={isMobileMode ? 52 : 64} color="var(--text-muted)" /></div>
+            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}>
+              <img src="https://loosedrawing.com/assets/media/illustrations/png/1156.png" alt="" style={{ width: isMobileMode ? 110 : 140, height: isMobileMode ? 110 : 140, objectFit: 'contain', opacity: 0.85 }} />
+            </div>
             <h3 style={{ fontSize: isMobileMode ? 17 : 20, fontWeight: 900, color: 'var(--text-primary)', marginBottom: 10 }}>
               {t('home.empty.title')}
             </h3>

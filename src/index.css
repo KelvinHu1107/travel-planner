@@ -39,7 +39,7 @@
 */
 
 :root {
-  /* ── 背景層次（沙色漸層） ── */
+  /* ── 背景層次（沙色漸層）可愛風預設 ── */
   --bg-base:    #FAF6ED;
   --bg-card:    rgba(255, 250, 240, 0.88);
   --bg-surface: rgba(195, 158, 99, 0.10);
@@ -58,6 +58,9 @@
   --accent-glow:  rgba(180, 83, 9, 0.18);
   --gold:         #D97706;
   --gold-dark:    #92400E;
+
+  /* ── 排版看板背景 ── */
+  --board-col-bg: #F2E7D0;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -537,5 +540,234 @@ button:not(.btn-game):not([disabled]):active {
   40%  { transform: translateX(-12px);  opacity: 1;   }
   70%  { transform: translateX(-18px);  opacity: 1;   }
   100% { transform: translateX(0px);    opacity: 0.6; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ✏️ 手繪風格主題 (Hand-drawn Theme)
+   預設主題：handdrawn。可愛風由 [data-theme="cute"] 保有原樣。
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 手繪風 CSS 變數 ──────────────────────────── */
+[data-theme="handdrawn"] {
+  /* 羊皮紙底色 */
+  --bg-base:      #F2E8D0;
+  --bg-card:      #FEFCF0;
+  --bg-surface:   rgba(120, 90, 40, 0.07);
+  --bg-elevated:  rgba(100, 70, 20, 0.12);
+  --border:       rgba(40, 18, 5, 0.48);
+  --border-glow:  rgba(40, 18, 5, 0.72);
+
+  /* 墨水文字 */
+  --text-primary:   #1A0C04;
+  --text-secondary: #3A1E0C;
+  --text-muted:     #785030;
+
+  /* 深藍墨水主題色 */
+  --accent:         #1B3888;
+  --accent-bright:  #2B55CC;
+  --accent-glow:    rgba(27, 56, 136, 0.16);
+  --gold:           #B05000;
+  --gold-dark:      #7A3400;
+
+  /* 排版看板欄位背景 */
+  --board-col-bg: #EDE5C6;
+}
+
+/* ── 手繪風 Body ─────────────────────────────── */
+[data-theme="handdrawn"] body {
+  font-family: 'Klee One', 'Ma Shan Zheng', 'PingFang TC', 'Noto Sans TC',
+    'Microsoft JhengHei', sans-serif;
+  font-weight: 400;
+  background-color: var(--bg-base);
+  background-image:
+    /* 斜向鉛筆紋理 */
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 20px,
+      rgba(120, 90, 40, 0.025) 20px,
+      rgba(120, 90, 40, 0.025) 21px
+    ),
+    /* 橫向筆記本格線 */
+    repeating-linear-gradient(
+      transparent,
+      transparent 30px,
+      rgba(110, 80, 30, 0.09) 30px,
+      rgba(110, 80, 30, 0.09) 31px
+    ),
+    /* 暖色漸層底紙 */
+    linear-gradient(160deg, #F5EDD8 0%, #EBE0C0 55%, #F2EAD2 100%);
+}
+
+/* ── 手繪風 卡片容器 ─────────────────────────── */
+[data-theme="handdrawn"] .glass-card {
+  background: var(--bg-card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 2px solid rgba(40, 18, 5, 0.55);
+  border-radius: 4px 18px 8px 16px / 16px 6px 18px 4px;
+  box-shadow: 4px 5px 0 rgba(40, 18, 5, 0.10), 0 2px 8px rgba(40,18,5,0.06);
+}
+
+[data-theme="handdrawn"] .glass-card-glow {
+  background: var(--bg-card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 2.5px solid rgba(40, 18, 5, 0.60);
+  border-radius: 6px 20px 10px 18px / 18px 8px 20px 6px;
+  box-shadow: 5px 6px 0 rgba(40, 18, 5, 0.10), 0 3px 12px rgba(40,18,5,0.06);
+}
+
+/* ── 手繪風 btn-game 基底 ────────────────────── */
+[data-theme="handdrawn"] .btn-game {
+  border-radius: 6px 16px 8px 14px / 10px 6px 16px 8px;
+  font-family: inherit;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+/* ── 手繪風 主要按鈕（深藍墨水印章） ─────────── */
+[data-theme="handdrawn"] .btn-primary {
+  background: #1B3888;
+  background-image: none;
+  border: 2.5px solid #0E2160;
+  border-radius: 6px 16px 8px 14px / 10px 6px 16px 8px;
+  box-shadow: 3px 4px 0 #0E2160;
+  color: #FEFCF0;
+  text-shadow: none;
+}
+[data-theme="handdrawn"] .btn-primary:not([disabled]):hover {
+  background: #2244A0;
+  filter: none;
+  box-shadow: 5px 6px 0 #0E2160;
+  transform: translateY(-2px) translateX(-1px) !important;
+}
+[data-theme="handdrawn"] .btn-primary:not([disabled]):active {
+  background: #142E70;
+  filter: none;
+  box-shadow: 1px 1px 0 #0E2160 !important;
+  transform: translateY(3px) translateX(3px) !important;
+}
+
+/* ── 手繪風 金色按鈕（琥珀印章） ────────────── */
+[data-theme="handdrawn"] .btn-gold {
+  background: #B85500;
+  background-image: none;
+  border: 2.5px solid #7A3400;
+  border-radius: 8px 6px 14px 4px / 6px 14px 4px 12px;
+  box-shadow: 3px 4px 0 #7A3400;
+  color: #FEFCF0;
+  text-shadow: none;
+}
+[data-theme="handdrawn"] .btn-gold:not([disabled]):hover {
+  filter: none;
+  box-shadow: 5px 6px 0 #7A3400;
+  transform: translateY(-2px) translateX(-1px) !important;
+}
+[data-theme="handdrawn"] .btn-gold:not([disabled]):active {
+  filter: none;
+  box-shadow: 1px 1px 0 #7A3400 !important;
+  transform: translateY(3px) translateX(3px) !important;
+}
+
+/* ── 手繪風 幽靈按鈕（鉛筆外框） ─────────────── */
+[data-theme="handdrawn"] .btn-ghost {
+  background: var(--bg-card);
+  background-image: none;
+  border: 2px solid rgba(40, 18, 5, 0.50);
+  border-radius: 4px 14px 6px 12px / 12px 4px 14px 6px;
+  box-shadow: 2px 3px 0 rgba(40, 18, 5, 0.12);
+  color: var(--text-secondary);
+}
+[data-theme="handdrawn"] .btn-ghost:not([disabled]):hover {
+  box-shadow: 4px 5px 0 rgba(40, 18, 5, 0.16);
+  border-color: rgba(40, 18, 5, 0.78);
+  transform: translateY(-1px) translateX(-1px) !important;
+  filter: none;
+}
+[data-theme="handdrawn"] .btn-ghost:not([disabled]):active {
+  box-shadow: 1px 1px 0 rgba(40, 18, 5, 0.12) !important;
+  transform: translateY(2px) translateX(2px) !important;
+  filter: none;
+}
+
+/* ── 手繪風 輸入框（筆記本格線風） ──────────── */
+[data-theme="handdrawn"] .game-input {
+  background: #FEFCF0;
+  border: 2px solid rgba(40, 18, 5, 0.50);
+  border-radius: 3px 10px 4px 8px / 8px 3px 10px 4px;
+  box-shadow: 2px 3px 0 rgba(40, 18, 5, 0.08);
+  font-family: inherit;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+[data-theme="handdrawn"] .game-input:focus {
+  border-color: rgba(27, 56, 136, 0.80);
+  box-shadow: 2px 3px 0 rgba(27, 56, 136, 0.18), 0 0 0 3px rgba(27, 56, 136, 0.08);
+}
+[data-theme="handdrawn"] .game-input::placeholder {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* ── 手繪風 滾動條 ───────────────────────────── */
+[data-theme="handdrawn"] ::-webkit-scrollbar-thumb {
+  background: rgba(40, 18, 5, 0.22);
+  border-radius: 2px;
+}
+[data-theme="handdrawn"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(40, 18, 5, 0.42);
+}
+
+/* ── 手繪風 一般按鈕（非 btn-game） ─────────── */
+[data-theme="handdrawn"] button:not(.btn-game):not([disabled]):active {
+  transform: scale(0.95) translateY(1px) !important;
+  filter: none !important;
+  opacity: 1;
+}
+
+/* ── 手繪風 Modal 底部表單 ───────────────────── */
+[data-theme="handdrawn"] .modal-sheet {
+  background: var(--bg-card);
+  border-top: 2px solid rgba(40, 18, 5, 0.35);
+  border-left: 2px solid rgba(40, 18, 5, 0.20);
+  border-right: 2px solid rgba(40, 18, 5, 0.20);
+}
+
+/* ── 手繪風 TopBar ───────────────────────────── */
+[data-theme="handdrawn"] .topbar-sticky,
+[data-theme="handdrawn"] [style*="position: sticky"][style*="top: 0"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ── 手繪風 拖曳卡片（手稿翻轉） ────────────── */
+[data-theme="handdrawn"] .card-drag-overlay {
+  filter: drop-shadow(4px 6px 0 rgba(40,18,5,0.20));
+}
+
+/* ── 手繪風 Tutorial 光環 ───────────────────── */
+[data-theme="handdrawn"] .tutorial-ring-pulse {
+  border-style: dashed !important;
+}
+
+/* ── 手繪風 手機版按鈕 ───────────────────────── */
+@media (max-width: 767px) {
+  [data-theme="handdrawn"] .btn-game {
+    border-radius: 6px 14px 8px 12px / 10px 6px 14px 8px;
+  }
+}
+
+/* ── 手繪風 字體大小微調（Caveat 較大需稍縮） ── */
+[data-theme="handdrawn"] h1,
+[data-theme="handdrawn"] h2,
+[data-theme="handdrawn"] h3 {
+  font-family: 'Klee One', 'Ma Shan Zheng', 'PingFang TC', sans-serif;
+  letter-spacing: 0.5px;
+}
+
+/* ── 手繪風 選取色 ──────────────────────────── */
+[data-theme="handdrawn"] ::selection {
+  background: rgba(27, 56, 136, 0.25);
+  color: var(--text-primary);
 }
 

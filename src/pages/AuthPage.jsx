@@ -457,8 +457,8 @@ export default function AuthPage() {
 
   if (authLoading || (isAutoSignIn && !lineError)) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-      <div style={{ fontSize: 52 }}>✈️</div>
+      justifyContent: 'center', flexDirection: 'column', gap: 20 }}>
+      <img src="https://loosedrawing.com/assets/media/illustrations/png/479.png" alt="" style={{ width: 120, height: 120, objectFit: 'contain', opacity: 0.85 }} />
       <p style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-muted)' }}>{t('auth.loading.line')}</p>
     </div>
   )

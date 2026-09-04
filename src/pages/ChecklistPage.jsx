@@ -14,6 +14,7 @@ const CFG = {
   todo: {
     emoji: '✅',
     emptyEmoji: '📋',
+    emptyIllustration: 'https://loosedrawing.com/assets/media/illustrations/png/933.png',
     color: '#B45309',
     bg: 'rgba(180,83,9,0.08)',
     border: 'rgba(180,83,9,0.28)',
@@ -27,6 +28,7 @@ const CFG = {
   packing: {
     emoji: '🎒',
     emptyEmoji: '🧳',
+    emptyIllustration: 'https://loosedrawing.com/assets/media/illustrations/png/1772.png',
     color: '#0F766E',
     bg: 'rgba(15,118,110,0.08)',
     border: 'rgba(15,118,110,0.28)',
@@ -343,7 +345,10 @@ export default function ChecklistPage({ type = 'todo' }) {
             textAlign: 'center', padding: '70px 0',
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
           }}>
-            <div style={{ fontSize: 56 }}>{cfg.emptyEmoji}</div>
+            {cfg.emptyIllustration
+              ? <img src={cfg.emptyIllustration} alt="" style={{ width: 130, height: 130, objectFit: 'contain', opacity: 0.85 }} />
+              : <div style={{ fontSize: 56 }}>{cfg.emptyEmoji}</div>
+            }
             <p style={{ fontSize: 17, fontWeight: 900, color: 'var(--text-secondary)' }}>
               {t(cfg.emptyTextKey)}
             </p>
